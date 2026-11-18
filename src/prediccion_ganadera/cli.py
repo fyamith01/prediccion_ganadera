@@ -14,7 +14,9 @@ from prediccion_ganadera.configuracion import ErrorConfiguracion, cargar_configu
 from prediccion_ganadera.puertos.ia import ErrorProveedorIA
 
 if TYPE_CHECKING:
+    from prediccion_ganadera.adaptadores.almacen.revision import ColaRevision
     from prediccion_ganadera.agentes.recolector import ResultadoRecoleccion
+    from prediccion_ganadera.agentes.verificador import ResultadoVerificacion
 
 CONFIG_POR_DEFECTO = "config/agentes.yaml"
 
@@ -128,6 +130,60 @@ def _extraer(args: argparse.Namespace) -> int:
     return 1 if resumen.errores else 0
 
 
+def _verificar(args: argparse.Namespace) -> int:
+    from datetime import UTC, datetime
+
+    from prediccion_ganadera.adaptadores.almacen.bronce import AlmacenBronce
+    from prediccion_ganadera.adaptadores.almacen.plata import AlmacenPlata
+    from prediccion_ganadera.adaptadores.almacen.revision import ColaRevision
+    from prediccion_ganadera.adaptadores.ia import crear_proveedor
+    from prediccion_ganadera.agentes.verificador import AgenteVerificador
+
+    try:
+        config = cargar_configuracion(args.config)
+        ia = None if args.sin_ia else crear_proveedor(config, "verificador")
+    except (ErrorConfiguracion, ErrorProveedorIA) as error:
+        print(error, file=sys.stderr)
+        return 2
+    datos = config.rutas.datos
+    cola = ColaRevision(datos / "plata")
+    agente = AgenteVerificador(
+        ia=ia,
+        bronce=AlmacenBronce(datos / "bronce"),
+        plata=AlmacenPlata(datos / "plata"),
+        cola=cola,
+        dir_paginas=datos / "paginas",
+        max_rectificaciones=config.limites.max_iteraciones_rectificacion,
+        confianza_minima=config.limites.confianza_minima_verificacion,
+        presupuesto_tokens=config.limites.presupuesto_tokens_corrida,
+    )
+    resultado = agente.ejecutar(ahora=datetime.now(UTC), limite=args.limite)
+    if args.json:
+        print(resultado.model_dump_json(indent=2))
+    else:
+        _imprimir_verificacion(resultado, cola)
+    return 0
+
+
+def _imprimir_verificacion(resultado: ResultadoVerificacion, cola: ColaRevision) -> None:
+    cuenta = ", ".join(f"{estado}: {n}" for estado, n in sorted(resultado.cuenta().items()))
+    print(f"{len(resultado.tablas)} tabla(s) revisadas ({cuenta or 'ninguna pendiente'})")
+    for tabla in resultado.tablas:
+        clave = tabla.clave
+        acciones = ", ".join(tabla.acciones) or "sin cambios"
+        print(
+            f"  {clave.sha256[:12]} p{clave.pagina} t{clave.tabla}: {tabla.estado} "
+            f"[{acciones}] {tabla.motivo}"
+        )
+    entradas = cola.entradas()
+    print(f"Cola de revisión ({len(entradas)}):")
+    for entrada in entradas:
+        clave = entrada.clave
+        print(f"  {clave.sha256[:12]} p{clave.pagina} t{clave.tabla}: {entrada.motivo}")
+    uso = resultado.uso
+    print(f"IA: {uso.llamadas_ia} llamadas, {uso.tokens} tokens, US$ {uso.costo_usd:.4f}")
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="prediccion-ganadera", description=__doc__)
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -152,6 +208,17 @@ def _parser() -> argparse.ArgumentParser:
     extraer.add_argument("--config", default=CONFIG_POR_DEFECTO)
     extraer.add_argument("--json", action="store_true", help="resumen en JSON")
     extraer.set_defaults(func=_extraer)
+
+    verificar = sub.add_parser(
+        "verificar", help="verifica las tablas pendientes de plata contra la imagen del PDF"
+    )
+    verificar.add_argument("--config", default=CONFIG_POR_DEFECTO)
+    verificar.add_argument(
+        "--sin-ia", action="store_true", help="solo comprobaciones deterministas"
+    )
+    verificar.add_argument("--limite", type=int, help="máximo de tablas en esta corrida")
+    verificar.add_argument("--json", action="store_true", help="trayectorias en JSON")
+    verificar.set_defaults(func=_verificar)
     return parser
 
 

@@ -25,6 +25,7 @@ agentes:
 limites:
   max_iteraciones_rectificacion: 3
   presupuesto_tokens_corrida: 200000
+  confianza_minima_verificacion: 0.8   # el verificador acepta una tabla solo con esta confianza
 
 rutas:
   datos: data

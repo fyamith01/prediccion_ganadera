@@ -51,6 +51,26 @@ tabla Delta en formato largo (una fila por celda, particionada por `anio`/`mes`,
 `estado_verificacion = pendiente` hasta que la verifique el agente visual). Cada PDF se
 extrae una sola vez por SHA-256; un PDF ilegible se reporta y no detiene el lote.
 
+Verificación visual (agente verificador): revisa cada tabla `pendiente` de plata.
+
+```bash
+uv run prediccion-ganadera verificar --sin-ia     # solo comprobaciones deterministas
+uv run prediccion-ganadera verificar --limite 10  # con el backend de `agentes.verificador`
+uv run prediccion-ganadera verificar --json       # trayectoria de cada tabla
+```
+
+1. Comprueba la tabla contra el texto de su página: filas de datos faltantes o distintas,
+   renglones de totales ausentes y totales de bloque que no cuadran.
+2. Si falla, rectifica sin IA: re-extrae la página con ajustes alternativos o anexa los
+   renglones faltantes copiados de la página.
+3. Con las comprobaciones en limpio, el modelo de visión compara la imagen de la página
+   (`data/paginas/<sha256>/p<n>.png`) con las celdas. Sus correcciones solo se aplican si
+   el valor aparece en el texto de la página.
+4. Como máximo `limites.max_iteraciones_rectificacion` rectificaciones por tabla. Las tablas
+   no resueltas quedan `en_revision` y entran a la cola `data/plata/cola_revision` (Delta);
+   las aceptadas quedan `verificada` (sin cambios) o `corregida`. Sin backend o sin
+   presupuesto de tokens, la tabla sigue `pendiente`.
+
 ## Decisiones de diseño
 
 *Pendiente.*
