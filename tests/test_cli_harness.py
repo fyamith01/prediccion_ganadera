@@ -6,6 +6,7 @@ import pytest
 
 from prediccion_ganadera.adaptadores.ia import crear_proveedor
 from prediccion_ganadera.adaptadores.ia.cli_harness import ProveedorCliHarness, interpretar_salida
+from prediccion_ganadera.adaptadores.ia.ollama import ProveedorOllama
 from prediccion_ganadera.configuracion import (
     BackendCliHarness,
     BackendOllama,
@@ -120,7 +121,6 @@ fuente: {url: "https://www.subastas.example/", dominios_permitidos: [www.subasta
 
     assert isinstance(crear_proveedor(config, "recolector"), ProveedorCliHarness)
     assert isinstance(config.backends["local"], BackendOllama)
-    with pytest.raises(ErrorProveedorIA, match="ollama"):
-        crear_proveedor(config, "verificador")
+    assert isinstance(crear_proveedor(config, "verificador"), ProveedorOllama)
     with pytest.raises(ErrorConfiguracion, match="no está configurado"):
         crear_proveedor(config, "inexistente")
