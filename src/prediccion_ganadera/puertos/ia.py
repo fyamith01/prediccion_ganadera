@@ -6,6 +6,8 @@ headless (Claude Code, Antigravity, Cursor) o un modelo local.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from pathlib import Path
 from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict
@@ -24,5 +26,19 @@ class RespuestaIA(BaseModel):
     costo_usd: float | None = None
 
 
+class UsoIA(BaseModel):
+    """Consumo acumulado de un agente en una corrida (para presupuesto y observabilidad)."""
+
+    llamadas_ia: int = 0
+    tokens: int = 0
+    costo_usd: float = 0.0
+
+    def registrar(self, respuesta: RespuestaIA) -> None:
+        self.tokens += (respuesta.tokens_entrada or 0) + (respuesta.tokens_salida or 0)
+        self.costo_usd += respuesta.costo_usd or 0.0
+
+
 class ProveedorIA(Protocol):
-    def completar(self, prompt: str) -> RespuestaIA: ...
+    def completar(self, prompt: str, imagenes: Sequence[Path] = ()) -> RespuestaIA:
+        """Respuesta del modelo; `imagenes` son archivos locales (p. ej. páginas en PNG)."""
+        ...

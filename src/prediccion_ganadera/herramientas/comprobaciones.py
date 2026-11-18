@@ -36,6 +36,7 @@ class Hallazgo(BaseModel):
 
     tipo: TipoHallazgo
     detalle: str
+    renglon: str | None = None  # el renglón de la página, en los hallazgos de faltantes
 
 
 def numeros(texto: str) -> tuple[int, ...]:
@@ -97,11 +98,19 @@ def comprobar_pagina(
     )
     texto_de = {numeros(linea): linea for linea in datos_pagina + totales_pagina}
     comunes = [
-        Hallazgo(tipo="fila_faltante", detalle=f"la página tiene «{texto_de[clave]}»")
+        Hallazgo(
+            tipo="fila_faltante",
+            detalle=f"la página tiene «{texto_de[clave]}»",
+            renglon=texto_de[clave],
+        )
         for clave in faltantes.elements()
     ]
     comunes_totales = [
-        Hallazgo(tipo="total_faltante", detalle=f"la página tiene «{texto_de[clave]}»")
+        Hallazgo(
+            tipo="total_faltante",
+            detalle=f"la página tiene «{texto_de[clave]}»",
+            renglon=texto_de[clave],
+        )
         for clave in totales_faltantes.elements()
     ]
 

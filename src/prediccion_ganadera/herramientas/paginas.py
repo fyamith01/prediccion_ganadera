@@ -48,5 +48,5 @@ def lineas_de_pagina(ruta_pdf: Path, pagina: int) -> list[str]:
             if not 1 <= pagina <= len(pdf.pages):
                 raise ErrorExtraccion(f"{Path(ruta_pdf).name} no tiene la página {pagina}")
             return [linea["text"] for linea in pdf.pages[pagina - 1].extract_text_lines()]
-    except PdfminerException as error:
+    except (PdfminerException, FileNotFoundError) as error:
         raise ErrorExtraccion(f"no se pudo leer {Path(ruta_pdf).name}: {error}") from error

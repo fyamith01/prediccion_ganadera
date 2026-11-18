@@ -64,6 +64,7 @@ class AsignacionAgente(_Estricto):
 class Limites(_Estricto):
     max_iteraciones_rectificacion: int = Field(default=3, ge=1)
     presupuesto_tokens_corrida: int = Field(default=200_000, gt=0)
+    confianza_minima_verificacion: float = Field(default=0.8, ge=0, le=1)
 
 
 class Rutas(_Estricto):

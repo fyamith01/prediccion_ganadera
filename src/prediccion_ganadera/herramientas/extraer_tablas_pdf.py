@@ -8,7 +8,7 @@ ajustes usados viajan con cada tabla para poder reintentar con otros.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +24,15 @@ AJUSTES_POR_DEFECTO: dict[str, Any] = {
     "snap_tolerance": 3,
     "join_tolerance": 3,
 }
+
+# Ajustes que el rectificador prueba cuando las comprobaciones deterministas fallan;
+# se queda con el que deje menos hallazgos.
+AJUSTES_ALTERNATIVOS: tuple[dict[str, Any], ...] = (
+    {**AJUSTES_POR_DEFECTO, "snap_tolerance": 5, "join_tolerance": 5},
+    {**AJUSTES_POR_DEFECTO, "text_y_tolerance": 5},
+    {**AJUSTES_POR_DEFECTO, "min_words_horizontal": 2},
+    {**AJUSTES_POR_DEFECTO, "min_words_vertical": 2},
+)
 
 
 class ErrorExtraccion(RuntimeError):
@@ -51,13 +60,19 @@ def _fila_vacia(celdas: list[str | None]) -> bool:
     return not any(c and c.strip() for c in celdas)
 
 
-def extraer_tablas(ruta: Path, ajustes: Mapping[str, Any] | None = None) -> list[TablaExtraida]:
-    """Devuelve las tablas no vacías del PDF, en orden de página."""
+def extraer_tablas(
+    ruta: Path,
+    ajustes: Mapping[str, Any] | None = None,
+    paginas: Collection[int] | None = None,
+) -> list[TablaExtraida]:
+    """Devuelve las tablas no vacías del PDF (o de las `paginas` pedidas, desde 1)."""
     usados = dict(AJUSTES_POR_DEFECTO if ajustes is None else ajustes)
     tablas: list[TablaExtraida] = []
     try:
         with pdfplumber.open(ruta) as pdf:
             for num_pagina, pagina in enumerate(pdf.pages, start=1):
+                if paginas is not None and num_pagina not in paginas:
+                    continue
                 crudas = pagina.extract_tables(table_settings=usados)
                 for num_tabla, cruda in enumerate(crudas, start=1):
                     filas = tuple(

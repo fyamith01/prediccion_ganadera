@@ -24,7 +24,7 @@ from prediccion_ganadera.adaptadores.almacen.bronce import AlmacenBronce
 from prediccion_ganadera.herramientas.calendario import ReporteHuecos, reportar_huecos
 from prediccion_ganadera.herramientas.descarga import ResultadoDescarga, descargar_nuevos
 from prediccion_ganadera.herramientas.enlaces import EnlaceSubasta, EstadoFecha, listar_enlaces
-from prediccion_ganadera.puertos.ia import ErrorProveedorIA, ProveedorIA
+from prediccion_ganadera.puertos.ia import ErrorProveedorIA, ProveedorIA, UsoIA
 
 _OBJETO_JSON = re.compile(r"\{.*\}", re.DOTALL)
 
@@ -63,12 +63,6 @@ class EnlaceEnRevision(_Modelo):
     texto: str
     candidatas: tuple[date, ...]
     motivo: str
-
-
-class UsoIA(BaseModel):
-    llamadas_ia: int = 0
-    tokens: int = 0
-    costo_usd: float = 0.0
 
 
 class ResultadoRecoleccion(_Modelo):
@@ -177,8 +171,7 @@ class AgenteRecolector:
             return f"el backend de IA falló: {error}"
         finally:
             uso.llamadas_ia += 1
-        uso.tokens += (respuesta.tokens_entrada or 0) + (respuesta.tokens_salida or 0)
-        uso.costo_usd += respuesta.costo_usd or 0.0
+        uso.registrar(respuesta)
         return _validar_decision(enlace, respuesta.texto)
 
 

@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import json
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from pathlib import Path
 from typing import Any
 
 from prediccion_ganadera.configuracion import BackendCliHarness
@@ -31,7 +32,15 @@ class ProveedorCliHarness:
         self._backend = backend
         self._ejecutar = ejecutar
 
-    def completar(self, prompt: str) -> RespuestaIA:
+    def completar(self, prompt: str, imagenes: Sequence[Path] = ()) -> RespuestaIA:
+        # Los harness no reciben archivos por argumento: leen la imagen con su propia
+        # herramienta de lectura a partir de la ruta absoluta.
+        if imagenes:
+            rutas = "\n".join(f"- {Path(imagen).resolve()}" for imagen in imagenes)
+            prompt = (
+                f"{prompt}\n\nImágenes adjuntas (ábrelas con tu herramienta de lectura de "
+                f"archivos):\n{rutas}"
+            )
         argv = self._backend.argv(prompt)
         try:
             proceso = self._ejecutar(

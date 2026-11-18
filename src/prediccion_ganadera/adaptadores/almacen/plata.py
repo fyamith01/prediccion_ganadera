@@ -138,6 +138,15 @@ class AlmacenPlata:
             ),
         )
 
+    def tablas_de_pagina(self, sha256: str, pagina: int) -> list[TablaPlata]:
+        """Todas las tablas de una página, sin importar su estado, por índice."""
+        datos = self.leer(["sha256", "pagina", "tabla"])
+        datos = datos.filter(
+            pc.and_(pc.equal(datos["sha256"], sha256), pc.equal(datos["pagina"], pagina))
+        )
+        indices = sorted(set(datos.column("tabla").to_pylist()))
+        return [self.leer_tabla(ClaveTabla(sha256=sha256, pagina=pagina, tabla=i)) for i in indices]
+
     def marcar_estado(self, clave: ClaveTabla, estado: str) -> None:
         _validar_estado(estado)
         DeltaTable(self.ruta).update(

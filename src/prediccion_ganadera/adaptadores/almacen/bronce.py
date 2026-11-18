@@ -45,6 +45,9 @@ class AlmacenBronce:
         lineas = self.manifiesto.read_text(encoding="utf-8").splitlines()
         return [RegistroManifiesto.model_validate_json(linea) for linea in lineas if linea]
 
+    def ruta_pdf(self, sha256: str) -> Path:
+        return self.raiz / "pdfs" / f"{sha256}.pdf"
+
     def urls_registradas(self) -> set[str]:
         return {r.url for r in self.registros()}
 
@@ -57,7 +60,7 @@ class AlmacenBronce:
         if not contenido.startswith(FIRMA_PDF):
             raise ErrorContenido(f"{url} no es un PDF (firma {contenido[:8]!r})")
         sha = hashlib.sha256(contenido).hexdigest()
-        ruta = Path("pdfs") / f"{sha}.pdf"
+        ruta = self.ruta_pdf(sha).relative_to(self.raiz)
         self._escribir_si_falta(self.raiz / ruta, contenido)
         registro = RegistroManifiesto(
             url=url,
