@@ -80,3 +80,10 @@ def test_enlaces_relativos_existen():
             if not (documento.parent / destino).exists():
                 rotos.append(f"{documento.name}: {destino}")
     assert not rotos, rotos
+
+
+def test_la_url_de_la_fuente_se_documenta_como_variable_de_entorno():
+    for documento in ("README.md", "docs/operacion.md", "docs/guia_del_codigo.md"):
+        texto = (RAIZ / documento).read_text(encoding="utf-8")
+        assert "PREDICCION_FUENTE_URL" in texto, documento
+        assert "subastas.example" not in texto, documento  # el dominio de prueba no es la fuente

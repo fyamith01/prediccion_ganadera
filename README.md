@@ -5,8 +5,10 @@ extrae sus tablas, las verifica visualmente con un modelo de IA configurable, la
 en un Data Lake (bronce/plata/oro con Delta Lake) y en PostgreSQL, entrena un modelo XGBoost
 para recomendar cuándo y qué ganado vender, y publica resúmenes periódicos en PDF.
 
-Fuente: los resúmenes semanales (viernes) que publica la fuente configurada en
-<https://www.subastas.example/resumen-de-subastas/>.
+Fuente: una página web que publica cada viernes el resumen de la subasta en PDF. Su URL
+no está en el repositorio: se define en la variable de entorno `PREDICCION_FUENTE_URL`
+(ver [docs/operacion.md](docs/operacion.md), paso 4), así el proyecto se puede replicar con
+cualquier fuente del mismo formato.
 
 | Documento | Para qué |
 |---|---|
@@ -25,7 +27,7 @@ comprobar, entrenar), y ninguna cifra la inventa un modelo de lenguaje.
 
 ```mermaid
 flowchart LR
-    W[(subastas.example)] --> R
+    W[(Página de la fuente)] --> R
     subgraph Corrida["run (LangGraph, reanudable)"]
         R[1 recolectar<br/>agente recolector] --> X[2 extraer<br/>herramienta pdfplumber]
         X --> V[3 verificar<br/>agente verificador visual]
@@ -172,6 +174,7 @@ PostgreSQL 16 con Docker Compose ([`infra/docker-compose.yml`](infra/docker-comp
 publicado solo en `127.0.0.1`. Crea un `.env` en la raíz (está ignorado por git):
 
 ```dotenv
+PREDICCION_FUENTE_URL=https://<sitio>/<pagina-de-resumenes>/   # la página de la fuente
 POSTGRES_USER=ganaderia
 POSTGRES_PASSWORD=<elige-una-clave>
 POSTGRES_DB=prediccion_ganadera

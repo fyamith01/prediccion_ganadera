@@ -112,7 +112,7 @@ típico. Las rutas de módulos son relativas a `src/prediccion_ganadera/`.
 | Usar otra IA en un agente | `config/agentes.yaml` → `agentes.<agente>.backend` | Sin tocar código. `validar-config` lo comprueba |
 | Agregar otro harness de IA | `config/agentes.yaml` → nuevo backend `cli_harness` con `{prompt}` | Si su JSON de salida es distinto, ajusta `adaptadores/ia/cli_harness.py` |
 | Cambiar el modelo local | `config/agentes.yaml` → `backends.local.modelo` | Debe soportar visión para el verificador |
-| Cambiar la página de origen o los dominios | `config/agentes.yaml` → `fuente.url`, `fuente.dominios_permitidos` | Si cambia el HTML, revisa `herramientas/enlaces.py` |
+| Cambiar la página de origen o los dominios | Variables `PREDICCION_FUENTE_URL` y `PREDICCION_FUENTE_DOMINIOS` en `.env` (o la sección `fuente` de `config/agentes.yaml`; la variable gana, ver `configuracion.py`) | Si cambia el HTML, revisa `herramientas/enlaces.py` |
 | Las subastas pasan a otro día de la semana | `VIERNES` en `herramientas/calendario.py` y los viernes de predicción en `modelado/dataset.py` (`filas_prediccion`) | |
 | Un nuevo formato de nombre de archivo con fecha | `_FECHA_NOMBRE` / `_FECHA_TEXTO` en `herramientas/enlaces.py` | Agrega el caso a `tests/test_enlaces.py` |
 | Más o menos rectificaciones, confianza mínima, presupuesto de tokens | `config/agentes.yaml` → `limites` | |

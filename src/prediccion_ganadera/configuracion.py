@@ -7,13 +7,24 @@ antes de lanzar una corrida.
 
 from __future__ import annotations
 
+import os
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Annotated, Literal
+from urllib.parse import urlsplit
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 MARCADOR_PROMPT = "{prompt}"
+# La URL de la página que publica los resúmenes no se versiona: se define en el entorno
+# (p. ej. en `.env`) y tiene prioridad sobre la sección `fuente` del YAML.
+VARIABLE_URL_FUENTE = "PREDICCION_FUENTE_URL"
+VARIABLE_DOMINIOS_FUENTE = "PREDICCION_FUENTE_DOMINIOS"  # opcional, separados por comas
+FALTA_FUENTE = (
+    f"falta la URL de la fuente: define {VARIABLE_URL_FUENTE} (ver docs/operacion.md) "
+    "o la sección 'fuente' en config/agentes.yaml"
+)
 
 
 class ErrorConfiguracion(ValueError):
@@ -103,8 +114,28 @@ class Configuracion(_Estricto):
             raise ErrorConfiguracion(f"el agente '{agente}' no está configurado") from None
 
 
-def cargar_configuracion(ruta: str | Path) -> Configuracion:
+def _fuente_del_entorno(entorno: Mapping[str, str]) -> Fuente | None:
+    url = entorno.get(VARIABLE_URL_FUENTE, "").strip()
+    if not url:
+        return None
+    partes = urlsplit(url)
+    if partes.scheme not in {"http", "https"} or not partes.hostname:
+        raise ErrorConfiguracion(f"{VARIABLE_URL_FUENTE} no es una URL http(s) válida: {url!r}")
+    dominios = [d.strip() for d in entorno.get(VARIABLE_DOMINIOS_FUENTE, "").split(",")]
+    dominios = [d for d in dominios if d]
+    if not dominios:
+        host = partes.hostname
+        alterno = host.removeprefix("www.") if host.startswith("www.") else f"www.{host}"
+        dominios = [host, alterno]
+    return Fuente(url=url, dominios_permitidos=dominios)
+
+
+def cargar_configuracion(
+    ruta: str | Path, entorno: Mapping[str, str] | None = None
+) -> Configuracion:
+    """Lee el YAML; `entorno` (por defecto `os.environ`) puede definir la fuente."""
     ruta = Path(ruta)
+    entorno = os.environ if entorno is None else entorno
     try:
         datos = yaml.safe_load(ruta.read_text(encoding="utf-8"))
     except FileNotFoundError:
@@ -112,6 +143,8 @@ def cargar_configuracion(ruta: str | Path) -> Configuracion:
     except yaml.YAMLError as error:
         raise ErrorConfiguracion(f"YAML inválido en {ruta}: {error}") from None
     try:
-        return Configuracion.model_validate(datos)
+        config = Configuracion.model_validate(datos)
     except ValidationError as error:
         raise ErrorConfiguracion(f"configuración inválida en {ruta}:\n{error}") from None
+    fuente = _fuente_del_entorno(entorno)
+    return config.model_copy(update={"fuente": fuente}) if fuente else config

@@ -107,3 +107,53 @@ def test_la_configuracion_del_repositorio_es_valida():
     for agente in ("recolector", "verificador", "rectificador", "reportero"):
         assert config.backend_de(agente) is not None
     assert config.backend_de("verificador") is config.backends["claude"]
+
+
+CONFIG_SIN_FUENTE = CONFIG_MINIMA.split("fuente:")[0]
+
+
+def test_sin_fuente_ni_variable_la_fuente_queda_sin_definir(tmp_path):
+    config = cargar_configuracion(escribir(tmp_path, CONFIG_SIN_FUENTE), entorno={})
+
+    assert config.fuente is None
+
+
+def test_la_url_de_la_fuente_se_toma_del_entorno(tmp_path):
+    entorno = {"PREDICCION_FUENTE_URL": "https://www.mi-fuente.example/resumenes/"}
+
+    config = cargar_configuracion(escribir(tmp_path, CONFIG_SIN_FUENTE), entorno=entorno)
+
+    assert config.fuente.url == "https://www.mi-fuente.example/resumenes/"
+    assert config.fuente.dominios_permitidos == ["www.mi-fuente.example", "mi-fuente.example"]
+
+
+def test_el_entorno_tiene_prioridad_sobre_el_yaml(tmp_path):
+    entorno = {
+        "PREDICCION_FUENTE_URL": "https://otra.example/pagina",
+        "PREDICCION_FUENTE_DOMINIOS": " otra.example , cdn.otra.example ",
+    }
+
+    config = cargar_configuracion(escribir(tmp_path, CONFIG_MINIMA), entorno=entorno)
+
+    assert config.fuente.url == "https://otra.example/pagina"
+    assert config.fuente.dominios_permitidos == ["otra.example", "cdn.otra.example"]
+
+
+def test_sin_variable_se_usa_la_fuente_del_yaml(tmp_path):
+    config = cargar_configuracion(escribir(tmp_path, CONFIG_MINIMA), entorno={})
+
+    assert config.fuente.url == "https://www.subastas.example/resumen-de-subastas/"
+
+
+@pytest.mark.parametrize("url", ["ftp://x.example/", "no es una url", "https:///sin-host"])
+def test_url_de_fuente_invalida_en_el_entorno(tmp_path, url):
+    with pytest.raises(ErrorConfiguracion, match="PREDICCION_FUENTE_URL"):
+        cargar_configuracion(
+            escribir(tmp_path, CONFIG_SIN_FUENTE), entorno={"PREDICCION_FUENTE_URL": url}
+        )
+
+
+def test_el_repositorio_no_trae_una_url_de_fuente():
+    config = cargar_configuracion(RAIZ / "config" / "agentes.yaml", entorno={})
+
+    assert config.fuente is None

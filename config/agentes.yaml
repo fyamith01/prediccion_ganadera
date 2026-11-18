@@ -31,6 +31,11 @@ rutas:
   datos: data
   reportes: reportes
 
-fuente:
-  url: https://www.subastas.example/resumen-de-subastas/
-  dominios_permitidos: [www.subastas.example, subastas.example]
+# Fuente de los resúmenes: la URL NO se versiona. Defínela en el entorno (archivo .env,
+# ver docs/operacion.md, paso 4):
+#   PREDICCION_FUENTE_URL=https://<sitio>/<pagina-de-resumenes>/
+#   PREDICCION_FUENTE_DOMINIOS=<sitio>,www.<sitio>   # opcional; por defecto, el de la URL
+# También puedes descomentar esto en una copia privada (la variable tiene prioridad):
+# fuente:
+#   url: https://<sitio>/<pagina-de-resumenes>/
+#   dominios_permitidos: [<sitio>, www.<sitio>]

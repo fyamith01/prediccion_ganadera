@@ -23,7 +23,7 @@ from prediccion_ganadera.adaptadores.reportes.pdf import RenderizadorPdf
 from prediccion_ganadera.agentes.recolector import AgenteRecolector
 from prediccion_ganadera.agentes.reportero import AgenteReportero
 from prediccion_ganadera.agentes.verificador import AgenteVerificador
-from prediccion_ganadera.configuracion import Configuracion, ErrorConfiguracion
+from prediccion_ganadera.configuracion import FALTA_FUENTE, Configuracion, ErrorConfiguracion
 from prediccion_ganadera.herramientas.bronce_a_plata import extraer_bronce_a_plata
 from prediccion_ganadera.modelado.dataset import DatosInsuficientes
 from prediccion_ganadera.modelado.modelador import (
@@ -55,7 +55,7 @@ def crear_pasos(config: Configuracion, opciones: OpcionesCorrida) -> dict[str, P
     """Valida la configuración y los backends antes de la corrida (lanza ErrorConfiguracion
     o ErrorProveedorIA) y devuelve los pasos del grafo."""
     if config.fuente is None:
-        raise ErrorConfiguracion("falta la sección 'fuente' en la configuración")
+        raise ErrorConfiguracion(FALTA_FUENTE)
     fuente_cfg = config.fuente
     ia_recolector = None if opciones.sin_ia else crear_proveedor(config, "recolector")
     ia_verificador = None if opciones.sin_ia else crear_proveedor(config, "verificador")

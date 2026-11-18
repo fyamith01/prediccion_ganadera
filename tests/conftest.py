@@ -31,6 +31,13 @@ INICIO = date(2025, 1, 3)  # viernes
 BASES = {"VACA HORRA": 7800, "MACHO LEVANTE": 10500, "HEMBRA LEVANTE": 9800}
 
 
+@pytest.fixture(autouse=True)
+def _sin_fuente_del_entorno(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Las pruebas definen su fuente en el YAML: ignora la URL real del `.env` exportado."""
+    monkeypatch.delenv("PREDICCION_FUENTE_URL", raising=False)
+    monkeypatch.delenv("PREDICCION_FUENTE_DOMINIOS", raising=False)
+
+
 @pytest.fixture(scope="session")
 def _servidor_postgres(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
     dsn = os.environ.get("PREDICCION_PG_DSN_PRUEBAS")

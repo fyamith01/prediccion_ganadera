@@ -72,4 +72,4 @@ def test_recolectar_sin_fuente_configurada(tmp_path: Path, capsys):
     )
 
     assert main(["recolectar", "--config", str(ruta), "--sin-ia"]) == 2
-    assert "fuente" in capsys.readouterr().err
+    assert "PREDICCION_FUENTE_URL" in capsys.readouterr().err

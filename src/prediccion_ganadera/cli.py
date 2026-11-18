@@ -11,7 +11,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from prediccion_ganadera import __version__
-from prediccion_ganadera.configuracion import ErrorConfiguracion, cargar_configuracion
+from prediccion_ganadera.configuracion import (
+    FALTA_FUENTE,
+    ErrorConfiguracion,
+    cargar_configuracion,
+)
 from prediccion_ganadera.puertos.ia import ErrorProveedorIA
 
 if TYPE_CHECKING:
@@ -46,7 +50,7 @@ def _recolectar(args: argparse.Namespace) -> int:
     try:
         config = cargar_configuracion(args.config)
         if config.fuente is None:
-            raise ErrorConfiguracion(f"falta la sección 'fuente' en {args.config}")
+            raise ErrorConfiguracion(FALTA_FUENTE)
         ia = None if args.sin_ia else crear_proveedor(config, "recolector")
     except (ErrorConfiguracion, ErrorProveedorIA) as error:
         print(error, file=sys.stderr)

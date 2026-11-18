@@ -10,7 +10,7 @@ comandos se ejecutan desde la raíz del repositorio.
 | Python 3.13 y [uv](https://docs.astral.sh/uv/) | Ejecutar el sistema | Sí |
 | Un backend de IA autenticado (`claude`, `agy`, `agent` u Ollama) | Agentes recolector, verificador y reportero | No: sin IA usa `--sin-ia` (lo dudoso queda en revisión) |
 | Docker con Compose | PostgreSQL local | No: sin Postgres el paso `cargar` se omite |
-| Acceso saliente a `www.subastas.example` | Descargar los resúmenes | Sí, salvo pruebas con `--html` |
+| La URL de la página de la fuente y acceso saliente a ella | Descargar los resúmenes | Sí, salvo pruebas con `--html` |
 
 ## 2. Instalación
 
@@ -37,11 +37,18 @@ luego `uv run pytest`.
    corrida), `max_iteraciones_rectificacion` y `confianza_minima_verificacion`.
 4. `uv run prediccion-ganadera validar-config` debe terminar con código 0.
 
-## 4. Base de datos (opcional)
+## 4. Variables de entorno y base de datos
 
-Crea `.env` en la raíz (git lo ignora; no lo subas nunca):
+Crea `.env` en la raíz (git lo ignora; no lo subas nunca). Solo la primera variable es
+obligatoria; las de Postgres hacen falta si usas la base de datos:
 
 ```dotenv
+# Página que publica los resúmenes en PDF (no se versiona)
+PREDICCION_FUENTE_URL=https://<sitio>/<pagina-de-resumenes>/
+# Opcional: dominios permitidos para descargar, separados por comas (por defecto, el de la
+# URL con y sin «www.»)
+# PREDICCION_FUENTE_DOMINIOS=<sitio>,www.<sitio>
+
 POSTGRES_USER=ganaderia
 POSTGRES_PASSWORD=<elige-una-clave>
 POSTGRES_DB=prediccion_ganadera
@@ -52,8 +59,12 @@ PREDICCION_PG_DSN=postgresql://ganaderia:<la-misma-clave>@localhost:5432/predicc
 ```bash
 docker compose --env-file .env -f infra/docker-compose.yml up -d   # descarga postgres:16-alpine la primera vez
 docker compose --env-file .env -f infra/docker-compose.yml ps      # debe decir «healthy»
-set -a; source .env; set +a                                         # exporta PREDICCION_PG_DSN a la sesión
+set -a; source .env; set +a                                         # exporta las variables a la sesión
 ```
+
+`PREDICCION_FUENTE_URL` tiene prioridad sobre la sección `fuente` de `config/agentes.yaml`
+(que en el repositorio viene comentada). Sin ninguna de las dos, `recolectar` y `run` terminan
+con código 2 y lo explican.
 
 La base escucha solo en `127.0.0.1` y guarda sus datos en el volumen `datos_postgres`. Los
 esquemas los crea el primer `cargar` o `run`; no hay migraciones manuales.
@@ -96,7 +107,8 @@ que se haya subido tarde (todo es idempotente: nada se descarga ni se procesa do
 - cron tiene un `PATH` mínimo: usa la ruta completa de `uv` (`which uv`) y verifica que el
   ejecutable de la IA (`which claude`) esté en el `PATH` que ve cron. Si no, añade
   `PATH=...` al inicio del crontab.
-- Sin Postgres, quita `. ./.env`; la corrida sigue sin el paso `cargar`.
+- `.env` trae la URL de la fuente, así que siempre se carga. Sin Postgres, deja fuera las
+  variables `POSTGRES_*` y `PREDICCION_PG_DSN`: la corrida sigue sin el paso `cargar`.
 - Un id repetido sale con código 2: por eso el id es la fecha.
 
 ## 7. Si una corrida falla o se cae
@@ -174,6 +186,41 @@ en [evaluacion.md](evaluacion.md).
 | `modelar` omitido: «sin datos suficientes» | Menos de 33 subastas con el resumen validado | Esperar a que el verificador valide más tablas; `entrenar --incluir-no-verificadas` para explorar (el resultado lo advierte) |
 | Muchas tablas `pendiente` | Sin IA o presupuesto de tokens agotado | Subir `presupuesto_tokens_corrida` o dejar que corridas sucesivas avancen |
 | `run` sale con código 2 por el id | El id ya existe | Usar otro `--id` o `--reanudar` si estaba interrumpida |
+
+## 12. Prueba local rápida (WSL o Linux, con Ollama)
+
+Recorre todo el flujo en una máquina de desarrollo sin GPU. La IA solo se usa en unas pocas
+tablas para no esperar horas (en CPU, cada llamada de visión tarda de 30 s a 2 min).
+
+```bash
+# 1. Ollama y un modelo de visión pequeño (~3 GB)
+curl -fsSL https://ollama.com/install.sh | sh
+ollama serve > /tmp/ollama.log 2>&1 &        # en WSL sin systemd; si hay systemd ya corre
+ollama pull qwen2.5vl:3b
+
+# 2. Dependencias, .env (paso 4) y agentes apuntando a Ollama
+uv sync
+sed -i 's/{backend: claude}/{backend: local}/' config/agentes.yaml   # o edítalo a mano
+uv run prediccion-ganadera validar-config
+set -a; source .env; set +a
+
+# 3. Postgres (opcional)
+docker compose --env-file .env -f infra/docker-compose.yml up -d
+
+# 4. Bronce -> plata -> verificación de muestra -> Postgres -> modelo -> reporte
+uv run prediccion-ganadera recolectar --sin-ia            # descarga los PDF a data/bronce/
+uv run prediccion-ganadera extraer                        # tablas Delta en data/plata/
+uv run prediccion-ganadera verificar --limite 4           # 4 tablas con Ollama; el resto, pendiente
+uv run prediccion-ganadera cargar                         # raw / staging / marts en Postgres
+uv run prediccion-ganadera entrenar --incluir-no-verificadas   # modelo + data/oro/predicciones
+uv run prediccion-ganadera reportar                       # reportes/<fecha>/resumen_<version>.pdf
+uv run prediccion-ganadera evaluar trayectorias
+```
+
+`entrenar --incluir-no-verificadas` usa también tablas que el verificador aún no aprobó (el
+resultado lo advierte); en producción se entrena solo con lo verificado. Para devolver los
+agentes a Claude, `git checkout config/agentes.yaml`. Para empezar de cero, borra `data/` y
+`reportes/` (y `docker compose ... down -v` para la base).
 
 ## Resumen de comandos
 
