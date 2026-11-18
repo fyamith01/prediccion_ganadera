@@ -43,7 +43,13 @@ reporta las subastas semanales faltantes y descarga los PDF nuevos a `data/bronc
 uv run prediccion-ganadera recolectar                 # lee la página y descarga
 uv run prediccion-ganadera recolectar --solo-listar   # sin descargas
 uv run prediccion-ganadera recolectar --sin-ia --json # conflictos de fecha a revisión manual
+uv run prediccion-ganadera extraer                    # PDFs de bronce -> plata (Delta Lake)
 ```
+
+`extraer` lee `data/bronce/manifiesto.jsonl` y escribe `data/plata/tablas_extraidas`, una
+tabla Delta en formato largo (una fila por celda, particionada por `anio`/`mes`, con
+`estado_verificacion = pendiente` hasta que la verifique el agente visual). Cada PDF se
+extrae una sola vez por SHA-256; un PDF ilegible se reporta y no detiene el lote.
 
 ## Decisiones de diseño
 

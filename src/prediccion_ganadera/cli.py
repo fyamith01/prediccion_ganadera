@@ -98,6 +98,36 @@ def _imprimir_resumen(resultado: ResultadoRecoleccion) -> None:
     print(f"IA: {uso.llamadas_ia} llamadas, {uso.tokens} tokens, US$ {uso.costo_usd:.4f}")
 
 
+def _extraer(args: argparse.Namespace) -> int:
+    from datetime import UTC, datetime
+
+    from prediccion_ganadera.adaptadores.almacen.bronce import AlmacenBronce
+    from prediccion_ganadera.adaptadores.almacen.plata import AlmacenPlata
+    from prediccion_ganadera.herramientas.bronce_a_plata import extraer_bronce_a_plata
+
+    try:
+        config = cargar_configuracion(args.config)
+    except ErrorConfiguracion as error:
+        print(error, file=sys.stderr)
+        return 2
+    resumen = extraer_bronce_a_plata(
+        AlmacenBronce(config.rutas.datos / "bronce"),
+        AlmacenPlata(config.rutas.datos / "plata"),
+        ahora=datetime.now(UTC),
+    )
+    if args.json:
+        print(resumen.model_dump_json(indent=2))
+    else:
+        print(
+            f"{len(resumen.procesados)} PDF(s) extraídos ({resumen.tablas} tablas, "
+            f"{resumen.celdas} celdas), {resumen.omitidos} ya en plata, "
+            f"{len(resumen.sin_tablas)} sin tablas, {len(resumen.errores)} con error"
+        )
+        for sha, motivo in resumen.errores.items():
+            print(f"  {sha}: {motivo}")
+    return 1 if resumen.errores else 0
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="prediccion-ganadera", description=__doc__)
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -117,6 +147,11 @@ def _parser() -> argparse.ArgumentParser:
     recolectar.add_argument("--hasta", type=date.fromisoformat, help="AAAA-MM-DD")
     recolectar.add_argument("--json", action="store_true", help="reporte en JSON")
     recolectar.set_defaults(func=_recolectar)
+
+    extraer = sub.add_parser("extraer", help="extrae a plata (Delta Lake) los PDFs de bronce")
+    extraer.add_argument("--config", default=CONFIG_POR_DEFECTO)
+    extraer.add_argument("--json", action="store_true", help="resumen en JSON")
+    extraer.set_defaults(func=_extraer)
     return parser
 
 
