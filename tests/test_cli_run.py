@@ -88,6 +88,8 @@ def test_corrida_completa_sin_ia_carga_postgres_y_registra_la_corrida(
     assert pasos["extraer"]["resumen"]["tablas"] == 4
     assert len(pasos["verificar"]["resumen"]["tablas"]) == 4
     assert pasos["cargar"]["resumen"]["tablas_nuevas"] == 4
+    # una sola subasta y sin validar: el modelo no se entrena y la corrida lo dice
+    assert pasos["modelar"]["omitido"].startswith("sin datos suficientes")
     with psycopg.connect(postgres_dsn) as conexion:
         runs = conexion.execute("SELECT id_corrida, estado FROM operacion.runs").fetchall()
         tablas = conexion.execute("SELECT count(*) FROM raw.tablas").fetchone()
@@ -103,6 +105,7 @@ def test_sin_dsn_omite_la_carga(config: Path, capsys):
     salida = capsys.readouterr().out
     assert "Corrida c1: completada" in salida
     assert "cargar: omitido (sin conexión a Postgres" in salida
+    assert "modelar: omitido (sin datos suficientes" in salida
     assert (config.parent / "data" / "corridas" / "checkpoints.sqlite").exists()
 
 

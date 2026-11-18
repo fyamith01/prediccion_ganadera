@@ -8,6 +8,7 @@ import pytest
 import yaml
 
 from prediccion_ganadera.adaptadores.almacen.bronce import RegistroManifiesto
+from prediccion_ganadera.adaptadores.almacen.oro import ESQUEMA_PREDICCIONES
 from prediccion_ganadera.adaptadores.almacen.plata import ESQUEMA
 from prediccion_ganadera.adaptadores.almacen.postgres import crear_esquemas
 from prediccion_ganadera.adaptadores.almacen.revision import ESQUEMA_REVISION
@@ -15,7 +16,7 @@ from prediccion_ganadera.adaptadores.almacen.revision import ESQUEMA_REVISION
 RAIZ = Path(__file__).resolve().parents[1]
 DICCIONARIO = RAIZ / "docs" / "diccionario_datos.md"
 COMPOSE = RAIZ / "infra" / "docker-compose.yml"
-LAGO = {"bronce", "plata"}
+LAGO = {"bronce", "plata", "oro", "modelos"}
 
 
 def _secciones() -> dict[str, list[str]]:
@@ -37,6 +38,8 @@ def test_documenta_los_campos_del_lago():
     assert secciones["bronce.manifiesto"] == list(RegistroManifiesto.model_fields)
     assert secciones["plata.tablas_extraidas"] == ESQUEMA.names
     assert secciones["plata.cola_revision"] == ESQUEMA_REVISION.names
+    assert secciones["oro.predicciones"] == ESQUEMA_PREDICCIONES.names
+    assert secciones["modelos.registro"] == ["version", "creado_en", "confianza", "mae", "mejora"]
 
 
 def test_documenta_las_columnas_de_postgres(postgres_dsn: str):

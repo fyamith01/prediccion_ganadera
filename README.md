@@ -18,7 +18,7 @@ para recomendar cuándo y qué ganado vender, y publica resúmenes periódicos e
 |---|---|---|
 | bronce | PDF originales, inmutables, nombrados por SHA-256 + manifiesto | PDF + JSONL |
 | plata | Tablas extraídas y verificadas | Delta Lake |
-| oro | Variables del modelo y predicciones | Delta Lake |
+| oro | Predicciones del modelo por versión (los modelos van en `data/modelos/`) | Delta Lake |
 
 ## Backends de IA
 
@@ -105,7 +105,7 @@ Las pruebas de Postgres no usan Docker ni red: levantan un PostgreSQL 16 embebid
 ## Corrida completa (orquestador)
 
 `run` encadena los agentes en un grafo de estados de LangGraph:
-recolectar → extraer → verificar → cargar.
+recolectar → extraer → verificar → cargar → modelar.
 
 ```bash
 uv run prediccion-ganadera run                          # corrida con id = hora UTC
@@ -121,12 +121,56 @@ uv run prediccion-ganadera run --solo-listar --json     # sin descargas; estado 
   actual, así que repite las que usaste al iniciar.
 - **Paradas.** Un fallo esperado (la fuente no responde, Postgres no acepta la carga)
   termina la corrida como `fallida` sin ejecutar los pasos siguientes (código de salida 1).
-  Sin conexión a Postgres el paso `cargar` se omite y la corrida termina igual.
+  Sin conexión a Postgres el paso `cargar` se omite y la corrida termina igual. Si no hay
+  histórico validado suficiente, `modelar` se omite con el motivo (ver «Modelo predictivo»).
 - **Presupuesto.** `limites.presupuesto_tokens_corrida` es de la corrida completa: cada
   agente recibe lo que dejaron los anteriores.
 - **Registro.** Cada inicio, reanudación, final o caída queda en
   `data/corridas/corridas.jsonl` y, si hay DSN, en la tabla `operacion.runs` de Postgres
   (estado, tokens, costo, duración y resumen de cada paso).
+
+## Modelo predictivo
+
+`entrenar` responde «¿qué día conviene vender y qué ganado?» con un modelo XGBoost sobre
+el precio promedio por kilo de cada categoría en cada subasta.
+
+```bash
+uv run prediccion-ganadera entrenar                           # desde plata, solo tablas validadas
+uv run prediccion-ganadera entrenar --fuente staging          # desde Postgres (PREDICCION_PG_DSN)
+uv run prediccion-ganadera entrenar --incluir-no-verificadas  # también tablas pendientes (lo advierte)
+uv run prediccion-ganadera entrenar --json                    # resumen completo en JSON
+```
+
+- **Datos.** Los precios salen de la tabla «RESUMEN GENERAL DE LA FERIA» de cada subasta
+  (ver [diccionario de datos](docs/diccionario_datos.md)). Las filas que no cuadran se
+  descartan con su motivo, nunca se completan. Las categorías rematadas por cabeza y las
+  subastas especiales quedan fuera del modelo.
+- **Variables y objetivo.** Para cada categoría, fecha de subasta y horizonte h (1 a 4
+  subastas adelante), las variables salen solo de subastas anteriores a la fecha de
+  referencia: último precio, media de los cuatro últimos, tendencia, animales y peso de la
+  última subasta, oferta total, semanas desde el último precio, mes y semana del año. El
+  objetivo es la variación frente al último precio conocido; así la línea base ingenua
+  («el precio no cambia») es predecir cero.
+- **Validación temporal.** Cinco pliegues de ventana creciente, cuatro fechas por pliegue:
+  se entrena con fechas anteriores y se prueba con las siguientes, sin mezclar fechas ni
+  categorías de una misma subasta entre ambos lados. El error se reporta en $/kg por
+  horizonte, frente a la línea base.
+- **Confianza (honesta).** El histórico es corto: subastas semanales desde enero de 2025.
+  El nivel es `baja` con menos de 26 subastas, menos de 3 pliegues o si el modelo no
+  supera a la línea base; `media` con menos de 52 subastas (no hay un año completo para
+  aprender la estacionalidad) o con una mejora menor al 10 %; `alta` en otro caso. Los
+  umbrales son heurísticos y cada motivo se imprime con el resultado.
+- **Ranking.** El modelo final, entrenado con todo el histórico, predice los cuatro
+  viernes siguientes a la última subasta para cada categoría. Por categoría se recomienda
+  la fecha de mayor precio esperado y las categorías se ordenan por variación esperada. Si
+  la diferencia entre fechas no supera el error de validación, se indica que no es
+  distinguible.
+- **Registro.** Cada entrenamiento queda en `data/modelos/<version>/` (`modelo.json`,
+  `metadatos.json` con datos, parámetros, métricas y confianza) y en
+  `data/modelos/registro.jsonl`; las predicciones van a la tabla Delta
+  `data/oro/predicciones`. Nada se sobrescribe.
+- **Sin histórico suficiente** el comando no entrena, explica cuántas subastas hay y
+  cuántas tablas faltan por validar, y sale con código 1.
 
 ## Decisiones de diseño
 

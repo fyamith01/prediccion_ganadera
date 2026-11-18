@@ -12,6 +12,9 @@ flowchart LR
     P -->|cargar: todas| R[(raw)]
     R -->|solo verificada / corregida| S[(staging)]
     R --> M[(marts)]
+    P -->|entrenar: resumen general| O[oro<br/>predicciones]
+    S -.->|entrenar --fuente staging| O
+    O --- MR[modelos<br/>registro]
 ```
 
 ## Conceptos comunes
@@ -80,6 +83,51 @@ Tabla Delta en `data/plata/cola_revision`: tablas que el verificador no pudo res
 | `hallazgos` | string | Lista JSON de las diferencias encontradas. |
 | `intentos` | int32 | Rectificaciones intentadas antes de rendirse. |
 | `creado_en` | timestamp UTC | Momento en que entró a la cola. |
+
+### Precios por categoría (variables del modelo)
+
+No se guardan como tabla: `prediccion-ganadera entrenar` los deriva en cada entrenamiento
+de la tabla «RESUMEN GENERAL DE LA FERIA» (página 1 de cada PDF) en plata o `staging`. Cada
+fila de esa tabla une sus celdas; los últimos seis números son animales, peso por cabeza
+(kg), precio mínimo, máximo y promedio y valor por animal, y las letras anteriores son la
+categoría (`VACA HO` + `RRA` → `VACA HORRA`). Los precios están en pesos por kilo, salvo las
+categorías rematadas por cabeza (peso 1: `MULETO`, `MACHO`), que el modelo deja fuera. Una
+fila se descarta, con su motivo, si el promedio no está entre el mínimo y el máximo, si el
+valor por animal difiere más de 5 % de peso × precio o si le faltan columnas.
+
+### `oro.predicciones`
+
+Tabla Delta en `data/oro/predicciones`: una fila por versión del modelo × fecha futura ×
+categoría, escrita una vez por versión.
+
+| Columna | Tipo | Descripción |
+|---|---|---|
+| `version` | string | Versión del modelo en `data/modelos/` que hizo la predicción. |
+| `generado_en` | timestamp UTC | Momento del entrenamiento. |
+| `fecha_referencia` | date | Última subasta conocida al predecir. |
+| `fecha` | date | Viernes de subasta predicho. |
+| `categoria` | string | Categoría de ganado. |
+| `horizonte` | int32 | Subastas (semanas) entre la referencia y la fecha predicha. |
+| `ultimo_precio` | float64 | Último precio promedio conocido de la categoría ($/kg). |
+| `precio_predicho` | float64 | Precio promedio esperado ($/kg). |
+| `variacion_esperada` | float64 | `precio_predicho / ultimo_precio - 1`. |
+| `error_esperado` | float64 | Error absoluto medio de la validación temporal para ese horizonte ($/kg). |
+| `confianza` | string | `alta`, `media` o `baja` (ver README, «Modelo predictivo»). |
+
+### `modelos.registro`
+
+`data/modelos/registro.jsonl`, un objeto JSON por entrenamiento. Cada versión tiene su
+carpeta `data/modelos/<version>/` con `modelo.json` (booster XGBoost) y `metadatos.json`
+(rango de fechas, huella de los datos, variables, parámetros, métricas por horizonte y
+motivos de la confianza).
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `version` | texto | Marca de tiempo UTC del entrenamiento (`AAAAMMDDTHHMMSSZ`, con sufijo si se repite). |
+| `creado_en` | marca de tiempo | Momento del entrenamiento. |
+| `confianza` | texto | Nivel de confianza del modelo. |
+| `mae` | número | Error absoluto medio de la validación temporal ($/kg). |
+| `mejora` | número | `1 - mae / mae de la línea base` (último precio conocido). |
 
 ## PostgreSQL
 

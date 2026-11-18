@@ -23,6 +23,8 @@ from prediccion_ganadera.agentes.recolector import AgenteRecolector
 from prediccion_ganadera.agentes.verificador import AgenteVerificador
 from prediccion_ganadera.configuracion import Configuracion, ErrorConfiguracion
 from prediccion_ganadera.herramientas.bronce_a_plata import extraer_bronce_a_plata
+from prediccion_ganadera.modelado.dataset import DatosInsuficientes
+from prediccion_ganadera.modelado.modelador import ejecutar_modelado, leer_precios
 from prediccion_ganadera.orquestacion.grafo import ErrorPaso, EstadoCorrida, Paso, ResultadoPaso
 
 SIN_DSN = "sin conexión a Postgres: define PREDICCION_PG_DSN o usa --dsn"
@@ -44,7 +46,7 @@ def _ahora() -> datetime:
 
 def crear_pasos(config: Configuracion, opciones: OpcionesCorrida) -> dict[str, Paso]:
     """Valida la configuración y los backends antes de la corrida (lanza ErrorConfiguracion
-    o ErrorProveedorIA) y devuelve los cuatro pasos del grafo."""
+    o ErrorProveedorIA) y devuelve los pasos del grafo."""
     if config.fuente is None:
         raise ErrorConfiguracion("falta la sección 'fuente' en la configuración")
     fuente_cfg = config.fuente
@@ -111,4 +113,21 @@ def crear_pasos(config: Configuracion, opciones: OpcionesCorrida) -> dict[str, P
             raise ErrorPaso(f"no se pudo cargar en Postgres: {error}") from error
         return ResultadoPaso(resumen=resumen.model_dump(mode="json"))
 
-    return {"recolectar": recolectar, "extraer": extraer, "verificar": verificar, "cargar": cargar}
+    def modelar(_estado: EstadoCorrida) -> ResultadoPaso:
+        # Lee plata (solo tablas validadas): no depende de que Postgres esté disponible.
+        precios = leer_precios("plata", datos=datos)
+        try:
+            resumen = ejecutar_modelado(
+                precios, datos=datos, fuente="plata", incluir_no_verificadas=False, ahora=_ahora()
+            )
+        except DatosInsuficientes as error:
+            return ResultadoPaso(omitido=f"sin datos suficientes: {error}")
+        return ResultadoPaso(resumen=resumen.model_dump(mode="json"))
+
+    return {
+        "recolectar": recolectar,
+        "extraer": extraer,
+        "verificar": verificar,
+        "cargar": cargar,
+        "modelar": modelar,
+    }

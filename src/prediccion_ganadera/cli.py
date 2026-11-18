@@ -225,6 +225,74 @@ def _cargar(args: argparse.Namespace) -> int:
     return 0
 
 
+def _entrenar(args: argparse.Namespace) -> int:
+    import os
+    from datetime import UTC, datetime
+
+    import psycopg
+
+    from prediccion_ganadera.modelado.dataset import DatosInsuficientes
+    from prediccion_ganadera.modelado.modelador import ejecutar_modelado, leer_precios
+
+    try:
+        config = cargar_configuracion(args.config)
+        dsn = args.dsn or os.environ.get(VARIABLE_DSN)
+        if args.fuente == "staging" and not dsn:
+            raise ErrorConfiguracion(
+                f"la fuente staging requiere Postgres: define {VARIABLE_DSN} o usa --dsn"
+            )
+    except ErrorConfiguracion as error:
+        print(error, file=sys.stderr)
+        return 2
+    try:
+        precios = leer_precios(
+            args.fuente,
+            datos=config.rutas.datos,
+            dsn=dsn,
+            incluir_no_verificadas=args.incluir_no_verificadas,
+        )
+        resumen = ejecutar_modelado(
+            precios,
+            datos=config.rutas.datos,
+            fuente=args.fuente,
+            incluir_no_verificadas=args.incluir_no_verificadas,
+            ahora=datetime.now(UTC),
+        )
+    except DatosInsuficientes as error:
+        print(f"no se entrenó: {error}", file=sys.stderr)
+        return 1
+    except psycopg.Error as error:
+        print(f"no se pudo leer staging en Postgres: {error}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(resumen.model_dump_json(indent=2))
+    else:
+        _imprimir_modelado(resumen)
+    return 0
+
+
+def _imprimir_modelado(resumen) -> None:
+    m = resumen.metricas
+    print(
+        f"Modelo {resumen.version} ({resumen.fuente}): {resumen.fechas_historico} subastas "
+        f"del {resumen.fecha_desde} al {resumen.fecha_hasta}, {resumen.precios} precios"
+    )
+    print(
+        f"Validación temporal: error medio {m.mae:,.0f} $/kg vs {m.mae_ingenuo:,.0f} $/kg de la "
+        f"línea base (último precio); mejora {m.mejora:.1%} en {m.pliegues} pliegues"
+    )
+    print(f"Confianza: {resumen.confianza.nivel}")
+    for motivo in resumen.confianza.motivos:
+        print(f"  - {motivo}")
+    print("Mejor fecha por categoría (mayor variación esperada primero):")
+    for r in resumen.recomendaciones:
+        nota = "" if r.distinguible else "  (diferencia entre fechas menor que el error)"
+        print(
+            f"  {r.categoria}: {r.mejor_fecha} -> {r.precio_predicho:,.0f} $/kg "
+            f"({r.variacion_esperada:+.1%} ± {r.error_esperado:,.0f}){nota}"
+        )
+
+
 def _run(args: argparse.Namespace) -> int:
     import json
     import os
@@ -343,9 +411,26 @@ def _parser() -> argparse.ArgumentParser:
     cargar.add_argument("--json", action="store_true", help="resumen en JSON")
     cargar.set_defaults(func=_cargar)
 
+    entrenar = sub.add_parser(
+        "entrenar",
+        help="entrena el modelo XGBoost, lo registra y guarda las predicciones en oro",
+    )
+    entrenar.add_argument("--config", default=CONFIG_POR_DEFECTO)
+    entrenar.add_argument(
+        "--fuente", choices=["plata", "staging"], default="plata", help="de dónde leer precios"
+    )
+    entrenar.add_argument("--dsn", help=f"conexión a Postgres; por defecto ${VARIABLE_DSN}")
+    entrenar.add_argument(
+        "--incluir-no-verificadas",
+        action="store_true",
+        help="usa también tablas pendientes de verificación (la confianza lo advierte)",
+    )
+    entrenar.add_argument("--json", action="store_true", help="resumen en JSON")
+    entrenar.set_defaults(func=_entrenar)
+
     run = sub.add_parser(
         "run",
-        help="corrida completa: recolectar, extraer, verificar y cargar (reanudable)",
+        help="corrida completa: recolectar, extraer, verificar, cargar y modelar (reanudable)",
     )
     run.add_argument("--config", default=CONFIG_POR_DEFECTO)
     identidad = run.add_mutually_exclusive_group()

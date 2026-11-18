@@ -33,7 +33,7 @@ from pydantic import BaseModel, Field
 
 from prediccion_ganadera.puertos.corridas import RegistroCorrida, RegistroCorridas
 
-ORDEN_PASOS = ("recolectar", "extraer", "verificar", "cargar")
+ORDEN_PASOS = ("recolectar", "extraer", "verificar", "cargar", "modelar")
 
 log = logging.getLogger(__name__)
 
