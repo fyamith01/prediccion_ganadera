@@ -16,7 +16,7 @@ para recomendar cuándo y qué ganado vender, y publica resúmenes periódicos e
 
 | Capa | Contenido | Formato |
 |---|---|---|
-| bronce | PDF originales, inmutables, nombrados por SHA-256 + manifiesto | PDF + JSON |
+| bronce | PDF originales, inmutables, nombrados por SHA-256 + manifiesto | PDF + JSONL |
 | plata | Tablas extraídas y verificadas | Delta Lake |
 | oro | Variables del modelo y predicciones | Delta Lake |
 
@@ -34,6 +34,15 @@ Requisitos: Python 3.13 y [uv](https://docs.astral.sh/uv/).
 uv sync
 uv run prediccion-ganadera validar-config
 uv run pytest
+```
+
+Recolección (agente recolector): lista los resúmenes publicados, resuelve sus fechas,
+reporta las subastas semanales faltantes y descarga los PDF nuevos a `data/bronce/`.
+
+```bash
+uv run prediccion-ganadera recolectar                 # lee la página y descarga
+uv run prediccion-ganadera recolectar --solo-listar   # sin descargas
+uv run prediccion-ganadera recolectar --sin-ia --json # conflictos de fecha a revisión manual
 ```
 
 ## Decisiones de diseño
