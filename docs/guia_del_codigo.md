@@ -53,7 +53,7 @@ típico. Las rutas de módulos son relativas a `src/prediccion_ganadera/`.
 |---|---|
 | `adaptadores/ia/cli_harness.py` | Ejecuta `claude -p`, `agy -p` o `agent -p` con tiempo límite, lee el sobre JSON y detecta rechazos «suaves» (`status`) |
 | `adaptadores/ia/ollama.py` | Llama a Ollama (`/api/generate`) con imágenes en base64, `format: "json"` y `num_ctx`; avisa si la respuesta se corta |
-| `adaptadores/fuente/http.py` | Cliente HTTP con cabeceras de navegador (`CABECERAS_NAVEGADOR`), reintentos, lista de dominios permitidos y redirecciones controladas; `contexto_ssl` relaja solo el modo X.509 estricto si `PREDICCION_SSL_NO_ESTRICTO=1` |
+| `adaptadores/fuente/http.py` | Cliente HTTP con cabeceras de navegador (`CABECERAS_NAVEGADOR`), reintentos, lista de dominios permitidos y redirecciones controladas; `contexto_ssl` relaja solo el modo X.509 estricto si `fuente.x509_estricto` es falso (o `PREDICCION_SSL_NO_ESTRICTO=1`) |
 | `adaptadores/almacen/bronce.py` | PDF por SHA-256 en `data/bronce/pdfs/` + `manifiesto.jsonl`; rechaza lo que no empieza con `%PDF-` |
 | `adaptadores/almacen/plata.py` | Tabla Delta `tablas_extraidas` (una fila por celda): leer, reemplazar y marcar el estado de una tabla |
 | `adaptadores/almacen/revision.py` | Cola de revisión manual (Delta `cola_revision`) |

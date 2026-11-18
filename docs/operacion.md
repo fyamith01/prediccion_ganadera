@@ -81,7 +81,8 @@ SITIO=<sitio>     # no uses HOST: en zsh esa variable cambia el prompt
 # con issuer igual a subject, o si no aparece, el emisor del último bloque)
 openssl s_client -showcerts -connect "$SITIO:443" -servername "$SITIO" </dev/null
 sudo cp red.crt /usr/local/share/ca-certificates/red.crt && sudo update-ca-certificates
-echo 'SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt' >> .env
+printf '\nSSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt\n' >> .env
+set -a; source .env; set +a      # vuelve a exportar .env tras cada cambio
 ```
 
 Si aun así falla con `Missing Authority Key Identifier`, es el modo estricto de Python 3.13
@@ -256,7 +257,9 @@ ventana de contexto de `num_ctx` tokens (16384 por defecto; Ollama usa 4096 si n
 pide otra). La imagen de una página más sus filas ocupa varios miles de tokens; si la
 ventana se llena, Ollama corta la respuesta y el paso falla con «respuesta de Ollama
 cortada». En ese caso sube `num_ctx` en el backend `local` de `config/agentes.yaml`
-(p. ej. `num_ctx: 32768`); más contexto usa más memoria y hace cada llamada más lenta.
+(p. ej. `num_ctx: 32768`); más contexto usa más memoria y hace cada llamada más lenta. Ollama
+también marca así una respuesta que se repite sin cerrar el JSON hasta llenar la ventana: si
+subir `num_ctx` no lo resuelve, prueba otro modelo de visión.
 
 **Límite conocido.** Si la página 1 de un PDF viene escaneada (imagen sin texto), el
 extractor no encuentra tablas y esa subasta queda fuera del entrenamiento.
