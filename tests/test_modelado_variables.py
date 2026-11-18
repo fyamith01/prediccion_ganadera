@@ -49,6 +49,38 @@ def test_detecta_solo_la_tabla_de_resumen_general(tablas_pdf):
     assert [es_resumen_general(t) for t in tablas_pdf] == [True, False, False, False]
 
 
+# Resumen cuyo título quedó por encima de la tabla: solo trae el encabezado de la feria.
+SIN_TITULO = _tabla(
+    ("Feria: 0000 Fecha: 01/01/2026", "", "", "", "", "", "", ""),
+    ("Coordinador: XXXX", "", "", "", "", "", "", ""),
+    HEMBRAS,
+    ("CATEGORIA", "", "ANIMALES", "PESO", "MINIMO", "MAXIMO", "PROMEDIO", "VALOR"),
+    ("VACA HO", "RRA", "10", "400", "7,000", "8,000", "7,500", "3,000,000"),
+    ("NOVILLA DE", "VIENTRE", "5", "300", "8,000", "9,000", "8,500", "2,550,000"),
+)
+
+
+def test_reconoce_el_resumen_por_sus_secciones_aunque_falte_el_titulo(tmp_path):
+    plata = AlmacenPlata(tmp_path / "plata")
+    plata.guardar(sha256=SHA_A, fecha=FECHA, especial=False, tablas=[SIN_TITULO], ahora=AHORA)
+
+    resultado = precios_desde_tablas(plata.tablas(), estados={"pendiente"})
+
+    assert es_resumen_general(SIN_TITULO)
+    assert [p.categoria for p in resultado.precios] == ["NOVILLA DE VIENTRE", "VACA HORRA"]
+    assert resultado.tablas_resumen == 1
+
+
+def test_ganado_a_mitad_de_una_fila_de_lotes_no_es_resumen():
+    lotes = _tabla(
+        ("LOTE", "VENDEDOR", "DESCRIPCION", "", "", "", "", ""),
+        ("12", "XXXX", "GANADO HEMBRA DE PRIMERA", "", "", "", "", ""),
+        ("13", "XXXX", "LOTE DE GANADO MACHO", "", "", "", "", ""),
+    )
+
+    assert not es_resumen_general(lotes)
+
+
 def test_lee_las_categorias_del_resumen_del_pdf_de_prueba(tablas_pdf):
     resultado = precios_de_resumen(tablas_pdf[0], fecha=FECHA, especial=False, sha256=SHA_A)
 

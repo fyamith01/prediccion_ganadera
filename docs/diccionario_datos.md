@@ -87,7 +87,9 @@ Tabla Delta en `data/plata/cola_revision`: tablas que el verificador no pudo res
 ### Precios por categoría (variables del modelo)
 
 No se guardan como tabla: `prediccion-ganadera entrenar` los deriva en cada entrenamiento
-de la tabla «RESUMEN GENERAL DE LA FERIA» (página 1 de cada PDF) en plata o `staging`. Cada
+de la tabla «RESUMEN GENERAL DE LA FERIA» (página 1 de cada PDF) en plata o `staging`. La
+tabla se reconoce por ese título entre sus primeras filas o, si el título quedó fuera de
+ella, por una fila de sección que empieza con `GANADO HEMBRA` o `GANADO MACHO`. Cada
 fila de esa tabla une sus celdas; los últimos seis números son animales, peso por cabeza
 (kg), precio mínimo, máximo y promedio y valor por animal, y las letras anteriores son la
 categoría (`VACA HO` + `RRA` → `VACA HORRA`). Los precios están en pesos por kilo, salvo las

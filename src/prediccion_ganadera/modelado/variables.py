@@ -102,13 +102,23 @@ def _compacto(texto: str) -> str:
 
 # El título «RESUMEN GENERAL DE LA FERIA» está en el encabezado de la página; según
 # cómo se alinee el texto de arriba (nombre de la entidad, NIT), el extractor mete o no
-# esos renglones en la tabla, así que el título puede quedar entre las primeras filas.
+# esos renglones en la tabla, así que el título puede quedar entre las primeras filas o
+# fuera de ella.
 _FILAS_ENCABEZADO = 6
 
 
+def _es_seccion(compacto: str) -> bool:
+    """Fila que abre una sección del resumen («GANADO HEMBRA/MACHO ...»)."""
+    return compacto.startswith(("GANADOHEMBRA", "GANADOMACHO"))
+
+
 def es_resumen_general(tabla: TablaExtraida) -> bool:
-    return any(
-        "RESUMENGENERAL" in _compacto(_texto(f.celdas)) for f in tabla.filas[:_FILAS_ENCABEZADO]
+    """El título entre las primeras filas o, si quedó fuera de la tabla, una fila de
+    sección. Que las tablas de lotes no traen filas que empiecen así es una observación
+    sobre los PDF publicados hasta 2026-11, no una garantía del formato."""
+    compactos = [_compacto(_texto(f.celdas)) for f in tabla.filas]
+    return any("RESUMENGENERAL" in c for c in compactos[:_FILAS_ENCABEZADO]) or any(
+        _es_seccion(c) for c in compactos
     )
 
 
@@ -169,9 +179,9 @@ def precios_de_resumen(
     for fila in tabla.filas:
         texto = _texto(fila.celdas)
         compacto = _compacto(texto)
-        if compacto.startswith("GANADO"):
+        if _es_seccion(compacto):
             en_seccion = True
-            seccion = "hembra" if "HEMBRA" in compacto else "macho" if "MACHO" in compacto else None
+            seccion = "hembra" if "HEMBRA" in compacto else "macho"
             continue
         if not en_seccion or "TOTAL" in compacto:
             continue
