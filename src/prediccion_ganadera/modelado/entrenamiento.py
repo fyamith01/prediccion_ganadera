@@ -60,6 +60,14 @@ class OpcionesEntrenamiento(BaseModel):
     parametros: dict[str, Any] = Field(default_factory=dict)  # sobre PARAMETROS_XGB
 
 
+def matriz_xgb(x: pd.DataFrame, categorias: list[str], y: pd.Series | None = None) -> xgb.DMatrix:
+    """Variables del modelo con las categorías fijadas, para que sus códigos coincidan
+    entre entrenamiento y predicción (y entre clientes, en el modo federado)."""
+    matriz = x[COLUMNAS_VARIABLES].copy()
+    matriz["categoria"] = pd.Categorical(matriz.categoria.astype(str), categories=categorias)
+    return xgb.DMatrix(matriz, label=y, enable_categorical=True)
+
+
 class ModeloXGB:
     """Booster XGBoost (API nativa) que fija las categorías conocidas al entrenar y al
     predecir, para que los códigos de categoría coincidan entre ambos momentos."""
@@ -70,11 +78,7 @@ class ModeloXGB:
         self.booster: xgb.Booster | None = None
 
     def _matriz(self, x: pd.DataFrame, y: pd.Series | None = None) -> xgb.DMatrix:
-        matriz = x[COLUMNAS_VARIABLES].copy()
-        matriz["categoria"] = pd.Categorical(
-            matriz.categoria.astype(str), categories=self.categorias
-        )
-        return xgb.DMatrix(matriz, label=y, enable_categorical=True)
+        return matriz_xgb(x, self.categorias, y)
 
     def entrenar(self, x: pd.DataFrame, y: pd.Series) -> ModeloXGB:
         parametros = dict(self.parametros)
