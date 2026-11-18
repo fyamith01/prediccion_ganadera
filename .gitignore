@@ -2,9 +2,9 @@
 odd/
 
 # Datos y salidas generadas: capas bronce/plata/oro, reportes y modelos
-data/
-reportes/
-modelos/
+/data/
+/reportes/
+/modelos/
 
 # Secretos
 .env
