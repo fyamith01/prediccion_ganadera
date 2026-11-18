@@ -1,0 +1,13 @@
+{
+  "type": "result",
+  "subtype": "success",
+  "is_error": false,
+  "duration_ms": 4210,
+  "num_turns": 2,
+  "usage": {
+    "input_tokens": 1830,
+    "output_tokens": 96
+  },
+  "total_cost_usd": 0.0123,
+  "result": "{\"coincide\": true, \"confianza\": 0.93, \"encabezado_ok\": true, \"filas_faltantes\": 0, \"celdas_erroneas\": [], \"comentario\": \"La tabla coincide con la página.\"}"
+}

@@ -1,0 +1,13 @@
+{
+  "type": "result",
+  "subtype": "success",
+  "is_error": false,
+  "duration_ms": 3120,
+  "num_turns": 1,
+  "usage": {
+    "input_tokens": 1450,
+    "output_tokens": 180
+  },
+  "total_cost_usd": 0.0098,
+  "result": "{\"resumen\": \"Con 94 subastas entre 03/01/2025 y 13/11/2026, el modelo mejora un +22,3 % frente a la línea base del último precio; la confianza es media.\", \"puntos\": [\"MACHO LEVANTE alcanzaría 10.813 $/kg el 27/11/2026 (+3,5 % frente al último precio), con un error esperado de ±330 $/kg.\", \"La confianza es media porque la mejora frente a la línea base es menor al 30 %.\"]}"
+}

@@ -1,0 +1,68 @@
+# Muestra revisada a mano para medir la exactitud de extracción (T9).
+#
+# Cómo se construyó: se transcribió leyendo la imagen de cada página (no la salida del
+# extractor). Cada renglón se escribe tal como se imprime; la evaluación compara solo sus
+# números (las horas «10:26» y los textos no cuentan).
+#
+# Regla de muestreo acordada (2026-11-18): la página 1 completa (resumen general: es lo
+# que consume el modelo) y 10 de los 75 lotes: cada 8.º lote en orden de página,
+# empezando por el primero (lotes n.º 1, 9, 17, ..., 73). Las páginas de lotes van con
+# «completa: false» porque no se transcribieron todos sus renglones.
+#
+# Para darla por revisada: compara cada cifra con el PDF, corrige lo que esté mal y
+# cambia «estado: borrador» por «estado: revisada» con revisado_por y revisado_en.
+pdf: Resumen-de-subasta-de-ganado-24-07-2026.pdf
+ruta: tests/fixtures/pdfs/Resumen-de-subasta-de-ganado-24-07-2026.pdf
+sha256: 67ac0a0af30ec12d5fbb3fbd3856f3bedb74f874636b71cfb0d6f5a0340f9b9d
+fecha: 2026-07-24
+estado: borrador
+revisado_por: null
+revisado_en: null
+notas: >-
+  Transcrita desde la imagen de las páginas renderizadas; pendiente de la revisión
+  humana contra el PDF.
+paginas:
+  - pagina: 1
+    completa: true
+    filas:
+      - "BUFALA HORRA 12 192 10,550 10,550 10,550 2,022,083"
+      - "HEMBRA LEVANTE 94 206 7,450 15,250 9,853 2,033,912"
+      - "NOVILLA DE VIENTRE 29 313 8,000 9,850 8,840 2,770,883"
+      - "VACA HORRA 55 422 6,500 9,000 7,805 3,291,581"
+      - "VACA PARIDA 19 430 6,000 15,500 9,104 3,914,720"
+      - "TOTAL: 209"
+      - "MULETO 1 1 3,000,000 3,000,000 3,000,000 3,000,000"
+      - "MACHO LEVANTE 128 213 9,400 13,200 10,557 2,245,318"
+      - "MACHO 2 1 4,000,000 4,300,000 4,150,000 4,150,000"
+      - "MACHO DE CEBA 29 315 8,050 9,850 9,228 2,903,638"
+      - "TOTAL: 160"
+      - "GRAN TOTAL 389"
+  - pagina: 2  # lotes 1, 9, 17, 25 y 33 de la subasta
+    completa: false
+    filas:
+      - "8 1 ML 250 250 10:26 PUERTO BOYACA 9,000 81 9,450 0 0"
+      - "24 1 HL 215 215 01:38 SAN LUIS 9,000 87 12,600 0 0"
+      - "33 8 ML 1,825 228 09:20 PUERTO BOYACA 9,500 12 11,100 0 0"
+      - "41 13 ML 3,040 234 07:56 PUERTO BOYACA 9,500 29 10,280 0 0"
+      - "49 9 ML 1,910 212 09:20 PUERTO BOYACA 10,000 87 13,200 0 0"
+  - pagina: 3  # lotes 41, 49, 57 y 65
+    completa: false
+    filas:
+      - "57 7 HL 1,905 272 11:07 CIMITARRA 7,500 50 8,350 0 0"
+      - "74 1 VP 360 360 06:36 OTANCHE 7,000 86 7,600 0 1"
+      - "82 3 VP 1,255 418 10:05 CIMITARRA 7,500 86 8,100 3 0"
+      - "90 1 VP 350 350 11:14 PUERTO BOYACA 6,500 44 15,500 0 1"
+  - pagina: 4  # lote 73
+    completa: false
+    filas:
+      - "120 1 MV 1 1 08:28 CIMITARRA 1,500,000 31 4,000,000 0 0"
+precios:
+  - {categoria: BUFALA HORRA, animales: 12, peso_cabeza: 192, precio_minimo: 10550, precio_maximo: 10550, precio_promedio: 10550, valor_animal: 2022083}
+  - {categoria: HEMBRA LEVANTE, animales: 94, peso_cabeza: 206, precio_minimo: 7450, precio_maximo: 15250, precio_promedio: 9853, valor_animal: 2033912}
+  - {categoria: NOVILLA DE VIENTRE, animales: 29, peso_cabeza: 313, precio_minimo: 8000, precio_maximo: 9850, precio_promedio: 8840, valor_animal: 2770883}
+  - {categoria: VACA HORRA, animales: 55, peso_cabeza: 422, precio_minimo: 6500, precio_maximo: 9000, precio_promedio: 7805, valor_animal: 3291581}
+  - {categoria: VACA PARIDA, animales: 19, peso_cabeza: 430, precio_minimo: 6000, precio_maximo: 15500, precio_promedio: 9104, valor_animal: 3914720}
+  - {categoria: MULETO, animales: 1, peso_cabeza: 1, precio_minimo: 3000000, precio_maximo: 3000000, precio_promedio: 3000000, valor_animal: 3000000}
+  - {categoria: MACHO LEVANTE, animales: 128, peso_cabeza: 213, precio_minimo: 9400, precio_maximo: 13200, precio_promedio: 10557, valor_animal: 2245318}
+  - {categoria: MACHO, animales: 2, peso_cabeza: 1, precio_minimo: 4000000, precio_maximo: 4300000, precio_promedio: 4150000, valor_animal: 4150000}
+  - {categoria: MACHO DE CEBA, animales: 29, peso_cabeza: 315, precio_minimo: 8050, precio_maximo: 9850, precio_promedio: 9228, valor_animal: 2903638}

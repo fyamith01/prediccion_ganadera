@@ -1,0 +1,22 @@
+# Documentación interna de trabajo (plan ODD, respaldada en Engram)
+odd/
+
+# Datos y salidas generadas: capas bronce/plata/oro, reportes y modelos
+/data/
+/reportes/
+/modelos/
+
+# Secretos
+.env
+.env.*
+!.env.example
+
+# Python y herramientas
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
