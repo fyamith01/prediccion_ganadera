@@ -3,6 +3,8 @@ name = "prediccion-ganadera"
 version = "0.1.0"
 description = "Sistema multiagente que recolecta, extrae, verifica y modela los resúmenes de subastas ganaderas."
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     { name = "fyamith01", email = "fabianyamith@gmail.com" }
 ]
