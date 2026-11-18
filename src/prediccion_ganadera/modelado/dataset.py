@@ -75,6 +75,45 @@ def serie_precios(
     return serie.sort_values(["fecha", "categoria"]).reset_index(drop=True)
 
 
+def _variables(
+    historia: pd.DataFrame,
+    *,
+    categoria: str,
+    referencia: pd.Timestamp,
+    fecha: pd.Timestamp,
+    horizonte: int,
+    oferta: int,
+) -> dict:
+    """Variables de una fila a partir de la historia de la categoría hasta `referencia`."""
+    ultimo = historia.iloc[-1]
+    media_4 = historia.precio.iloc[-4:].mean()
+    return {
+        "fecha": fecha,
+        "fecha_referencia": referencia,
+        "categoria": categoria,
+        "horizonte": horizonte,
+        "ultimo_precio": float(ultimo.precio),
+        "media_4": float(media_4),
+        "tendencia": float(ultimo.precio / media_4 - 1),
+        "animales_ultimo": int(ultimo.animales),
+        "peso_ultimo": int(ultimo.peso_cabeza),
+        "oferta_referencia": oferta,
+        "semanas_desde_ultimo": (fecha - ultimo.fecha).days / 7,
+        "mes": fecha.month,
+        "semana": int(fecha.isocalendar().week),
+    }
+
+
+def _ordenar(filas: list[dict], serie: pd.DataFrame) -> pd.DataFrame:
+    tabla = pd.DataFrame(filas)
+    if tabla.empty:
+        return tabla
+    tabla["categoria"] = pd.Categorical(
+        tabla.categoria, categories=sorted(serie.categoria.unique())
+    )
+    return tabla.sort_values(["fecha", "categoria", "horizonte"]).reset_index(drop=True)
+
+
 def construir_dataset(
     serie: pd.DataFrame, *, horizontes: Sequence[int] = HORIZONTES
 ) -> pd.DataFrame:
@@ -93,34 +132,41 @@ def construir_dataset(
                 historia = grupo[grupo.fecha <= referencia]
                 if historia.empty:
                     continue
-                ultimo = historia.iloc[-1]
-                media_4 = historia.precio.iloc[-4:].mean()
-                filas.append(
-                    {
-                        "fecha": objetivo.fecha,
-                        "fecha_referencia": referencia,
-                        "categoria": categoria,
-                        "horizonte": h,
-                        "ultimo_precio": float(ultimo.precio),
-                        "media_4": float(media_4),
-                        "tendencia": float(ultimo.precio / media_4 - 1),
-                        "animales_ultimo": int(ultimo.animales),
-                        "peso_ultimo": int(ultimo.peso_cabeza),
-                        "oferta_referencia": int(oferta[referencia]),
-                        "semanas_desde_ultimo": (objetivo.fecha - ultimo.fecha).days / 7,
-                        "mes": objetivo.fecha.month,
-                        "semana": int(objetivo.fecha.isocalendar().week),
-                        "precio": float(objetivo.precio),
-                        "objetivo": float(objetivo.precio / ultimo.precio - 1),
-                    }
+                fila = _variables(
+                    historia,
+                    categoria=categoria,
+                    referencia=referencia,
+                    fecha=objetivo.fecha,
+                    horizonte=h,
+                    oferta=int(oferta[referencia]),
                 )
-    dataset = pd.DataFrame(filas)
-    if dataset.empty:
-        return dataset
-    dataset["categoria"] = pd.Categorical(
-        dataset.categoria, categories=sorted(serie.categoria.unique())
-    )
-    return dataset.sort_values(["fecha", "categoria", "horizonte"]).reset_index(drop=True)
+                fila["precio"] = float(objetivo.precio)
+                fila["objetivo"] = float(objetivo.precio / fila["ultimo_precio"] - 1)
+                filas.append(fila)
+    return _ordenar(filas, serie)
+
+
+def filas_prediccion(
+    serie: pd.DataFrame, *, horizontes: Sequence[int] = HORIZONTES
+) -> pd.DataFrame:
+    """Variables para los próximos viernes de subasta, con la última subasta como
+    referencia; el horizonte h es el h-ésimo viernes después de ella."""
+    referencia = serie.fecha.max()
+    primer_viernes = referencia + pd.Timedelta(days=(4 - referencia.dayofweek - 1) % 7 + 1)
+    oferta = int(serie[serie.fecha == referencia].animales.sum())
+    filas = [
+        _variables(
+            grupo.sort_values("fecha"),
+            categoria=categoria,
+            referencia=referencia,
+            fecha=primer_viernes + pd.Timedelta(weeks=h - 1),
+            horizonte=h,
+            oferta=oferta,
+        )
+        for categoria, grupo in serie.groupby("categoria", sort=True)
+        for h in horizontes
+    ]
+    return _ordenar(filas, serie)
 
 
 def particiones_temporales(
