@@ -5,3 +5,7 @@ Sobres con la forma documentada de `claude -p --output-format json`
 sintéticos: ninguno se obtuvo de un backend real, porque enviar páginas de los
 PDFs a un servicio externo requiere autorización explícita. El harness falso de
 `tests/test_agente_verificador.py` los imprime como si fuera `claude -p`.
+
+`reportero_*.json` son narrativas sintéticas del agente reportero sobre las cifras de
+la fixture `cifras_sinteticas` (`tests/conftest.py`): una usa solo cifras de los hechos y
+la otra inventa números, para probar la barrera.

@@ -1,81 +1,16 @@
 """Renderizado del reporte en PDF y publicación en `reportes/<aaaa-mm-dd>/`."""
 
 import json
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 
 import pdfplumber
 import pytest
 
-from prediccion_ganadera.adaptadores.almacen.oro import PrediccionOro
 from prediccion_ganadera.adaptadores.reportes.pdf import RenderizadorPdf
 from prediccion_ganadera.adaptadores.reportes.salida import publicar_reporte
-from prediccion_ganadera.herramientas.cifras_reporte import (
-    CifrasReporte,
-    FilaHorizonte,
-    FilaRecomendacion,
-    Narrativa,
-    narrativa_determinista,
-)
+from prediccion_ganadera.herramientas.cifras_reporte import Narrativa, narrativa_determinista
 
 AHORA = datetime(2026, 11, 18, 12, 0, tzinfo=UTC)
-
-
-def _cifras(**cambios) -> CifrasReporte:
-    base = CifrasReporte(
-        version="20261118T120000Z",
-        fuente="plata",
-        incluye_no_verificadas=False,
-        fecha_desde=date(2025, 1, 3),
-        fecha_hasta=date(2026, 11, 13),
-        fechas_historico=94,
-        precios=846,
-        descartes=2,
-        tablas_omitidas=1,
-        mae=312.4,
-        mae_ingenuo=401.9,
-        mape=0.034,
-        mejora=0.2227,
-        pliegues=5,
-        confianza="media",
-        motivos_confianza=["la mejora frente a la línea base es menor al 30 %"],
-        horizontes=[
-            FilaHorizonte(horizonte=1, mae=280.0, mae_ingenuo=350.0, mejora=0.2),
-            FilaHorizonte(horizonte=2, mae=330.5, mae_ingenuo=420.0, mejora=0.213),
-        ],
-        recomendaciones=[
-            FilaRecomendacion(
-                categoria="MACHO LEVANTE",
-                mejor_fecha=date(2026, 11, 27),
-                horizonte=2,
-                ultimo_precio=10450.0,
-                precio_predicho=10812.6,
-                variacion_esperada=0.0347,
-                error_esperado=330.5,
-                distinguible=True,
-            )
-        ],
-        predicciones=[
-            PrediccionOro(
-                fecha=date(2026, 11, 20),
-                categoria="MACHO LEVANTE",
-                horizonte=1,
-                ultimo_precio=10450.0,
-                precio_predicho=10600.2,
-                variacion_esperada=0.0144,
-                error_esperado=280.0,
-            ),
-            PrediccionOro(
-                fecha=date(2026, 11, 27),
-                categoria="MACHO LEVANTE",
-                horizonte=2,
-                ultimo_precio=10450.0,
-                precio_predicho=10812.6,
-                variacion_esperada=0.0347,
-                error_esperado=330.5,
-            ),
-        ],
-    )
-    return base.model_copy(update=cambios)
 
 
 def _texto(ruta) -> str:
@@ -83,8 +18,8 @@ def _texto(ruta) -> str:
         return "\n".join(p.extract_text() or "" for p in pdf.pages)
 
 
-def test_el_pdf_trae_cifras_narrativa_y_tablas(tmp_path):
-    cifras = _cifras()
+def test_el_pdf_trae_cifras_narrativa_y_tablas(tmp_path, cifras_sinteticas):
+    cifras = cifras_sinteticas()
     narrativa = Narrativa(
         resumen="El precio del macho de levante subiría en las próximas semanas.",
         puntos=["MACHO LEVANTE: mejor fecha 27/11/2026."],
@@ -111,23 +46,23 @@ def test_el_pdf_trae_cifras_narrativa_y_tablas(tmp_path):
         assert esperado in texto, esperado
 
 
-def test_renderizar_es_reproducible(tmp_path):
-    narrativa = narrativa_determinista(_cifras(), motivo="sin IA")
+def test_renderizar_es_reproducible(tmp_path, cifras_sinteticas):
+    narrativa = narrativa_determinista(cifras_sinteticas(), motivo="sin IA")
     a, b = tmp_path / "a.pdf", tmp_path / "b.pdf"
 
-    RenderizadorPdf().renderizar(_cifras(), narrativa, a, generado_en=AHORA)
-    RenderizadorPdf().renderizar(_cifras(), narrativa, b, generado_en=AHORA)
+    RenderizadorPdf().renderizar(cifras_sinteticas(), narrativa, a, generado_en=AHORA)
+    RenderizadorPdf().renderizar(cifras_sinteticas(), narrativa, b, generado_en=AHORA)
 
     assert a.read_bytes() == b.read_bytes()
     assert "sin IA" in _texto(a)
 
 
-def test_texto_con_marcado_se_escapa_y_las_advertencias_aparecen(tmp_path):
+def test_texto_con_marcado_se_escapa_y_las_advertencias_aparecen(tmp_path, cifras_sinteticas):
     narrativa = Narrativa(resumen="Ojo: <b>precio</b> & <para>", puntos=[], origen="ia")
     destino = tmp_path / "r.pdf"
 
     RenderizadorPdf().renderizar(
-        _cifras(incluye_no_verificadas=True, recomendaciones=[], predicciones=[]),
+        cifras_sinteticas(incluye_no_verificadas=True, recomendaciones=[], predicciones=[]),
         narrativa,
         destino,
         generado_en=AHORA,
@@ -139,8 +74,8 @@ def test_texto_con_marcado_se_escapa_y_las_advertencias_aparecen(tmp_path):
     assert "No hay recomendaciones" in texto
 
 
-def test_publicar_escribe_pdf_y_json_por_dia_sin_sobrescribir(tmp_path):
-    cifras = _cifras()
+def test_publicar_escribe_pdf_y_json_por_dia_sin_sobrescribir(tmp_path, cifras_sinteticas):
+    cifras = cifras_sinteticas()
     narrativa = narrativa_determinista(cifras, motivo="sin IA")
     raiz = tmp_path / "reportes"
 
@@ -158,8 +93,8 @@ def test_publicar_escribe_pdf_y_json_por_dia_sin_sobrescribir(tmp_path):
 
 
 @pytest.mark.parametrize("version", ["../fuera", "a/b", "", "v 1"])
-def test_una_version_rara_no_puede_escribir_fuera_de_reportes(tmp_path, version):
-    cifras = _cifras(version=version)
+def test_una_version_rara_no_puede_escribir_fuera_de_reportes(tmp_path, cifras_sinteticas, version):
+    cifras = cifras_sinteticas(version=version)
 
     with pytest.raises(ValueError, match="versión"):
         publicar_reporte(

@@ -1,0 +1,13 @@
+{
+  "type": "result",
+  "subtype": "success",
+  "is_error": false,
+  "duration_ms": 3120,
+  "num_turns": 1,
+  "usage": {
+    "input_tokens": 1450,
+    "output_tokens": 60
+  },
+  "total_cost_usd": 0.0071,
+  "result": "{\"resumen\": \"El precio del MACHO LEVANTE subiría un 15 % en diciembre.\", \"puntos\": [\"Conviene vender 120 animales el 27/11/2026.\"]}"
+}
