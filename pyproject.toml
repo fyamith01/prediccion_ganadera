@@ -1,7 +1,7 @@
 [project]
-name = "tablas-en-pdf"
+name = "prediccion-ganadera"
 version = "0.1.0"
-description = "Add your description here"
+description = "Sistema multiagente que recolecta, extrae, verifica y modela los resúmenes de subastas ganaderas."
 readme = "README.md"
 authors = [
     { name = "fyamith01", email = "fabianyamith@gmail.com" }
@@ -11,11 +11,32 @@ dependencies = [
     "camelot-py[cv]>=2.0.0",
     "pandas>=3.0.5",
     "pdfplumber>=0.11.10",
+    "pydantic>=2.11",
+    "pyyaml>=6.0.2",
 ]
 
 [project.scripts]
-tablas-en-pdf = "tablas_en_pdf:main"
+prediccion-ganadera = "prediccion_ganadera.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4",
+    "ruff>=0.12",
+]
 
 [build-system]
-requires = ["uv_build>=0.12.1,<0.13.0"]
+requires = ["uv_build>=0.11.0,<0.13.0"]
 build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+# Script heredado: se reescribe como herramienta determinista en T3 y sale de esta lista.
+extend-exclude = ["src/prediccion_ganadera/herramientas/extraer_tablas_pdf.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
