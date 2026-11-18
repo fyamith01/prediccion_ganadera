@@ -225,6 +225,80 @@ def _cargar(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run(args: argparse.Namespace) -> int:
+    import json
+    import os
+    from datetime import UTC, datetime
+
+    from prediccion_ganadera.adaptadores.almacen.corridas import RegistroJsonl, RegistroPostgres
+    from prediccion_ganadera.orquestacion.grafo import ErrorPaso, Orquestador, abrir_checkpointer
+    from prediccion_ganadera.orquestacion.pasos import OpcionesCorrida, crear_pasos
+
+    try:
+        config = cargar_configuracion(args.config)
+        dsn = args.dsn or os.environ.get(VARIABLE_DSN)
+        opciones = OpcionesCorrida(
+            sin_ia=args.sin_ia,
+            html=args.html.read_text(encoding="utf-8") if args.html else None,
+            descargar=not args.solo_listar,
+            desde=args.desde,
+            hasta=args.hasta,
+            dsn=dsn,
+        )
+        pasos = crear_pasos(config, opciones)
+    except (ErrorConfiguracion, ErrorProveedorIA) as error:
+        print(error, file=sys.stderr)
+        return 2
+    dir_corridas = config.rutas.datos / "corridas"
+    registros = [RegistroJsonl(dir_corridas / "corridas.jsonl")]
+    if dsn:
+        registros.append(RegistroPostgres(dsn))
+    id_corrida = args.reanudar or args.id or datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    with abrir_checkpointer(dir_corridas / "checkpoints.sqlite") as checkpointer:
+        orquestador = Orquestador(
+            pasos,
+            checkpointer,
+            presupuesto_tokens=config.limites.presupuesto_tokens_corrida,
+            registros=registros,
+        )
+        try:
+            if args.reanudar:
+                estado = orquestador.reanudar(id_corrida)
+            else:
+                estado = orquestador.iniciar(id_corrida)
+        except ErrorPaso as error:
+            print(error, file=sys.stderr)
+            return 2
+        except Exception as error:
+            print(
+                f"la corrida {id_corrida} se interrumpió: {type(error).__name__}: {error}\n"
+                f"Lo terminado quedó guardado; continúa con: "
+                f"prediccion-ganadera run --reanudar {id_corrida}",
+                file=sys.stderr,
+            )
+            return 1
+    if args.json:
+        print(json.dumps(estado, indent=2, ensure_ascii=False))
+    else:
+        _imprimir_corrida(estado)
+    if estado["estado"] == "fallida":
+        print(estado["error"], file=sys.stderr)
+        return 1
+    return 0
+
+
+def _imprimir_corrida(estado: dict) -> None:
+    print(
+        f"Corrida {estado['id_corrida']}: {estado['estado']} "
+        f"(IA: {estado['tokens']} tokens, US$ {estado['costo_usd']:.4f})"
+    )
+    for nombre, paso in estado["pasos"].items():
+        if paso["omitido"]:
+            print(f"  {nombre}: omitido ({paso['omitido']})")
+        else:
+            print(f"  {nombre}: {paso['duracion_s']:.2f} s, {paso['tokens']} tokens")
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="prediccion-ganadera", description=__doc__)
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -268,6 +342,23 @@ def _parser() -> argparse.ArgumentParser:
     cargar.add_argument("--dsn", help=f"conexión a Postgres; por defecto ${VARIABLE_DSN}")
     cargar.add_argument("--json", action="store_true", help="resumen en JSON")
     cargar.set_defaults(func=_cargar)
+
+    run = sub.add_parser(
+        "run",
+        help="corrida completa: recolectar, extraer, verificar y cargar (reanudable)",
+    )
+    run.add_argument("--config", default=CONFIG_POR_DEFECTO)
+    identidad = run.add_mutually_exclusive_group()
+    identidad.add_argument("--id", help="identificador de la corrida; por defecto la hora UTC")
+    identidad.add_argument("--reanudar", metavar="ID", help="continúa una corrida interrumpida")
+    run.add_argument("--html", type=Path, help="usa una copia local de la página")
+    run.add_argument("--solo-listar", action="store_true", help="no descarga PDFs")
+    run.add_argument("--sin-ia", action="store_true", help="sin backend de IA en ningún agente")
+    run.add_argument("--desde", type=date.fromisoformat, help="AAAA-MM-DD")
+    run.add_argument("--hasta", type=date.fromisoformat, help="AAAA-MM-DD")
+    run.add_argument("--dsn", help=f"conexión a Postgres; por defecto ${VARIABLE_DSN}")
+    run.add_argument("--json", action="store_true", help="estado final de la corrida en JSON")
+    run.set_defaults(func=_run)
     return parser
 
 

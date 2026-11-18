@@ -102,6 +102,32 @@ Las pruebas de Postgres no usan Docker ni red: levantan un PostgreSQL 16 embebid
 (`pixeltable-pgserver`) con una base nueva por prueba, o usan el servidor de
 `PREDICCION_PG_DSN_PRUEBAS` si la defines.
 
+## Corrida completa (orquestador)
+
+`run` encadena los agentes en un grafo de estados de LangGraph:
+recolectar → extraer → verificar → cargar.
+
+```bash
+uv run prediccion-ganadera run                          # corrida con id = hora UTC
+uv run prediccion-ganadera run --id semanal --sin-ia    # sin backend de IA
+uv run prediccion-ganadera run --reanudar semanal       # continúa una corrida caída
+uv run prediccion-ganadera run --solo-listar --json     # sin descargas; estado final en JSON
+```
+
+- **Estado y reanudación.** El estado tipado de la corrida (pasos hechos, tokens, costo,
+  presupuesto restante) se guarda después de cada paso en
+  `data/corridas/checkpoints.sqlite`. Si el proceso cae, `--reanudar <id>` continúa en el
+  paso que falló sin repetir los anteriores. Usa las opciones de la línea de comandos
+  actual, así que repite las que usaste al iniciar.
+- **Paradas.** Un fallo esperado (la fuente no responde, Postgres no acepta la carga)
+  termina la corrida como `fallida` sin ejecutar los pasos siguientes (código de salida 1).
+  Sin conexión a Postgres el paso `cargar` se omite y la corrida termina igual.
+- **Presupuesto.** `limites.presupuesto_tokens_corrida` es de la corrida completa: cada
+  agente recibe lo que dejaron los anteriores.
+- **Registro.** Cada inicio, reanudación, final o caída queda en
+  `data/corridas/corridas.jsonl` y, si hay DSN, en la tabla `operacion.runs` de Postgres
+  (estado, tokens, costo, duración y resumen de cada paso).
+
 ## Decisiones de diseño
 
 *Pendiente.*
