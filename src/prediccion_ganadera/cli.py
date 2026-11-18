@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from prediccion_ganadera.agentes.verificador import ResultadoVerificacion
 
 CONFIG_POR_DEFECTO = "config/agentes.yaml"
+VARIABLE_DSN = "PREDICCION_PG_DSN"
 
 
 def _validar_config(args: argparse.Namespace) -> int:
@@ -184,6 +185,46 @@ def _imprimir_verificacion(resultado: ResultadoVerificacion, cola: ColaRevision)
     print(f"IA: {uso.llamadas_ia} llamadas, {uso.tokens} tokens, US$ {uso.costo_usd:.4f}")
 
 
+def _cargar(args: argparse.Namespace) -> int:
+    import os
+    from datetime import UTC, datetime
+
+    import psycopg
+
+    from prediccion_ganadera.adaptadores.almacen.plata import AlmacenPlata
+    from prediccion_ganadera.adaptadores.almacen.postgres import cargar_plata
+
+    try:
+        config = cargar_configuracion(args.config)
+        dsn = args.dsn or os.environ.get(VARIABLE_DSN)
+        if not dsn:
+            raise ErrorConfiguracion(
+                f"falta la conexión a Postgres: define {VARIABLE_DSN} o usa --dsn "
+                "(ver README, «Base de datos local»)"
+            )
+    except ErrorConfiguracion as error:
+        print(error, file=sys.stderr)
+        return 2
+    try:
+        with psycopg.connect(dsn) as conexion:
+            resumen = cargar_plata(
+                AlmacenPlata(config.rutas.datos / "plata"), conexion, ahora=datetime.now(UTC)
+            )
+    except psycopg.Error as error:
+        # libpq no incluye la contraseña en sus mensajes; el DSN nunca se imprime.
+        print(f"no se pudo cargar en Postgres: {error}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(resumen.model_dump_json(indent=2))
+    else:
+        print(
+            f"{resumen.tablas_nuevas} tabla(s) nuevas, {resumen.tablas_actualizadas} "
+            f"actualizadas, {resumen.tablas_sin_cambios} sin cambios ({resumen.celdas} celdas "
+            f"escritas); {resumen.tablas_en_staging} en staging"
+        )
+    return 0
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="prediccion-ganadera", description=__doc__)
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -219,6 +260,14 @@ def _parser() -> argparse.ArgumentParser:
     verificar.add_argument("--limite", type=int, help="máximo de tablas en esta corrida")
     verificar.add_argument("--json", action="store_true", help="trayectorias en JSON")
     verificar.set_defaults(func=_verificar)
+
+    cargar = sub.add_parser(
+        "cargar", help="carga plata en Postgres (raw; staging solo con tablas validadas)"
+    )
+    cargar.add_argument("--config", default=CONFIG_POR_DEFECTO)
+    cargar.add_argument("--dsn", help=f"conexión a Postgres; por defecto ${VARIABLE_DSN}")
+    cargar.add_argument("--json", action="store_true", help="resumen en JSON")
+    cargar.set_defaults(func=_cargar)
     return parser
 
 
