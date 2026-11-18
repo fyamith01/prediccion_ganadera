@@ -71,6 +71,37 @@ uv run prediccion-ganadera verificar --json       # trayectoria de cada tabla
    las aceptadas quedan `verificada` (sin cambios) o `corregida`. Sin backend o sin
    presupuesto de tokens, la tabla sigue `pendiente`.
 
+## Base de datos local
+
+PostgreSQL 16 con Docker Compose ([`infra/docker-compose.yml`](infra/docker-compose.yml)),
+publicado solo en `127.0.0.1`. Crea un `.env` en la raíz (está ignorado por git):
+
+```dotenv
+POSTGRES_USER=ganaderia
+POSTGRES_PASSWORD=<elige-una-clave>
+POSTGRES_DB=prediccion_ganadera
+POSTGRES_PORT=5432
+PREDICCION_PG_DSN=postgresql://ganaderia:<la-misma-clave>@localhost:5432/prediccion_ganadera
+```
+
+```bash
+docker compose --env-file .env -f infra/docker-compose.yml up -d   # descarga postgres:16-alpine
+set -a; source .env; set +a                                         # exporta PREDICCION_PG_DSN
+uv run prediccion-ganadera cargar          # plata -> raw / staging / marts
+uv run prediccion-ganadera cargar --json   # resumen de la carga
+```
+
+`cargar` crea los esquemas si no existen y es idempotente: identifica cada tabla por el
+SHA-256 del PDF, la página y su índice, y solo reescribe las que cambiaron. `raw` recibe
+todas las tablas de plata; `staging`, solo las `verificada` o `corregida`;
+`marts.cobertura_subastas` resume el avance de la verificación por subasta. Prefiere
+`PREDICCION_PG_DSN` a `--dsn`, que deja la contraseña visible en la lista de procesos.
+Cada campo está descrito en el [diccionario de datos](docs/diccionario_datos.md).
+
+Las pruebas de Postgres no usan Docker ni red: levantan un PostgreSQL 16 embebido
+(`pixeltable-pgserver`) con una base nueva por prueba, o usan el servidor de
+`PREDICCION_PG_DSN_PRUEBAS` si la defines.
+
 ## Decisiones de diseño
 
 *Pendiente.*
