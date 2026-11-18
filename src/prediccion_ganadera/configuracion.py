@@ -21,6 +21,7 @@ MARCADOR_PROMPT = "{prompt}"
 # (p. ej. en `.env`) y tiene prioridad sobre la sección `fuente` del YAML.
 VARIABLE_URL_FUENTE = "PREDICCION_FUENTE_URL"
 VARIABLE_DOMINIOS_FUENTE = "PREDICCION_FUENTE_DOMINIOS"  # opcional, separados por comas
+VARIABLE_SSL_NO_ESTRICTO = "PREDICCION_SSL_NO_ESTRICTO"  # "1": TLS sin VERIFY_X509_STRICT
 FALTA_FUENTE = (
     f"falta la URL de la fuente: define {VARIABLE_URL_FUENTE} (ver docs/operacion.md) "
     "o la sección 'fuente' en config/agentes.yaml"
@@ -89,6 +90,10 @@ class Rutas(_Estricto):
 class Fuente(_Estricto):
     url: str
     dominios_permitidos: list[str] = Field(min_length=1)
+    # False quita `ssl.VERIFY_X509_STRICT` (activo desde Python 3.13) para redes cuyo proxy
+    # de inspección TLS emite certificados sin Authority Key Identifier. El certificado y el
+    # nombre del sitio se siguen verificando.
+    x509_estricto: bool = True
 
 
 class Configuracion(_Estricto):
@@ -115,6 +120,13 @@ class Configuracion(_Estricto):
             return self.backends[self.agentes[agente].backend]
         except KeyError:
             raise ErrorConfiguracion(f"el agente '{agente}' no está configurado") from None
+
+
+def _ssl_no_estricto(entorno: Mapping[str, str]) -> bool:
+    valor = entorno.get(VARIABLE_SSL_NO_ESTRICTO, "").strip()
+    if valor not in {"", "0", "1"}:
+        raise ErrorConfiguracion(f"{VARIABLE_SSL_NO_ESTRICTO} debe ser 1 o 0, no {valor!r}")
+    return valor == "1"
 
 
 def _fuente_del_entorno(entorno: Mapping[str, str]) -> Fuente | None:
@@ -149,5 +161,11 @@ def cargar_configuracion(
         config = Configuracion.model_validate(datos)
     except ValidationError as error:
         raise ErrorConfiguracion(f"configuración inválida en {ruta}:\n{error}") from None
+    no_estricto = _ssl_no_estricto(entorno)
     fuente = _fuente_del_entorno(entorno)
-    return config.model_copy(update={"fuente": fuente}) if fuente else config
+    if fuente and config.fuente:
+        fuente = fuente.model_copy(update={"x509_estricto": config.fuente.x509_estricto})
+    fuente = fuente or config.fuente
+    if fuente and no_estricto:
+        fuente = fuente.model_copy(update={"x509_estricto": False})
+    return config.model_copy(update={"fuente": fuente})

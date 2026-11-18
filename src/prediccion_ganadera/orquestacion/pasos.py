@@ -67,7 +67,9 @@ def crear_pasos(config: Configuracion, opciones: OpcionesCorrida) -> dict[str, P
     def recolectar(estado: EstadoCorrida) -> ResultadoPaso:
         agente = AgenteRecolector(
             ia=ia_recolector,
-            fuente=FuenteHttp(fuente_cfg.dominios_permitidos),
+            fuente=FuenteHttp(
+                fuente_cfg.dominios_permitidos, x509_estricto=fuente_cfg.x509_estricto
+            ),
             almacen=bronce,
             url_pagina=fuente_cfg.url,
             dominios_permitidos=fuente_cfg.dominios_permitidos,

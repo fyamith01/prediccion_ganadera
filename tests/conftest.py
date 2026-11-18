@@ -33,9 +33,16 @@ BASES = {"VACA HORRA": 7800, "MACHO LEVANTE": 10500, "HEMBRA LEVANTE": 9800}
 
 @pytest.fixture(autouse=True)
 def _sin_fuente_del_entorno(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Las pruebas definen su fuente en el YAML: ignora la URL real del `.env` exportado."""
-    monkeypatch.delenv("PREDICCION_FUENTE_URL", raising=False)
-    monkeypatch.delenv("PREDICCION_FUENTE_DOMINIOS", raising=False)
+    """Las pruebas definen su fuente en el YAML: ignora la URL real y los ajustes TLS del
+    `.env` exportado."""
+    for variable in (
+        "PREDICCION_FUENTE_URL",
+        "PREDICCION_FUENTE_DOMINIOS",
+        "PREDICCION_SSL_NO_ESTRICTO",
+        "SSL_CERT_FILE",
+        "SSL_CERT_DIR",
+    ):
+        monkeypatch.delenv(variable, raising=False)
 
 
 @pytest.fixture(scope="session")

@@ -167,3 +167,55 @@ def test_el_repositorio_no_trae_una_url_de_fuente():
     config = cargar_configuracion(RAIZ / "config" / "agentes.yaml", entorno={})
 
     assert config.fuente is None
+
+
+def test_la_fuente_verifica_tls_en_modo_estricto_por_defecto(tmp_path):
+    config = cargar_configuracion(escribir(tmp_path, CONFIG_MINIMA), entorno={})
+
+    assert config.fuente.x509_estricto is True
+
+
+@pytest.mark.parametrize(
+    ("valor", "estricto"), [("1", False), ("0", True), ("", True), (" 1 ", False)]
+)
+def test_variable_ssl_no_estricto(tmp_path, valor, estricto):
+    entorno = {"PREDICCION_SSL_NO_ESTRICTO": valor}
+
+    config = cargar_configuracion(escribir(tmp_path, CONFIG_MINIMA), entorno=entorno)
+
+    assert config.fuente.x509_estricto is estricto
+
+
+def test_variable_ssl_no_estricto_aplica_tambien_a_la_fuente_del_entorno(tmp_path):
+    entorno = {
+        "PREDICCION_FUENTE_URL": "https://otra.example/pagina",
+        "PREDICCION_SSL_NO_ESTRICTO": "1",
+    }
+
+    config = cargar_configuracion(escribir(tmp_path, CONFIG_SIN_FUENTE), entorno=entorno)
+
+    assert config.fuente.x509_estricto is False
+
+
+def test_la_fuente_del_entorno_conserva_el_modo_tls_del_yaml(tmp_path):
+    contenido = CONFIG_MINIMA + "  x509_estricto: false\n"
+    entorno = {"PREDICCION_FUENTE_URL": "https://otra.example/pagina"}
+
+    config = cargar_configuracion(escribir(tmp_path, contenido), entorno=entorno)
+
+    assert config.fuente.x509_estricto is False
+
+
+@pytest.mark.parametrize("valor", ["si", "true", "2"])
+def test_variable_ssl_no_estricto_invalida(tmp_path, valor):
+    with pytest.raises(ErrorConfiguracion, match="PREDICCION_SSL_NO_ESTRICTO"):
+        cargar_configuracion(
+            escribir(tmp_path, CONFIG_MINIMA), entorno={"PREDICCION_SSL_NO_ESTRICTO": valor}
+        )
+
+
+def test_variable_ssl_no_estricto_invalida_falla_aunque_no_haya_fuente(tmp_path):
+    with pytest.raises(ErrorConfiguracion, match="PREDICCION_SSL_NO_ESTRICTO"):
+        cargar_configuracion(
+            escribir(tmp_path, CONFIG_SIN_FUENTE), entorno={"PREDICCION_SSL_NO_ESTRICTO": "si"}
+        )

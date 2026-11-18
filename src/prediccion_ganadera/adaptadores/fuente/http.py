@@ -3,10 +3,16 @@
 Guardarraíles: solo hace GET a los dominios permitidos (también tras una redirección),
 espacia las solicitudes y reintenta con espera exponencial los errores transitorios.
 La fuente responde 406 a clientes sin cabeceras de navegador, por eso se envían.
+
+`contexto_ssl` arma el contexto TLS (respeta `SSL_CERT_FILE`/`SSL_CERT_DIR`); con
+`estricto=False` quita solo `ssl.VERIFY_X509_STRICT`, para redes con un proxy de inspección
+TLS cuyos certificados no cumplen ese modo. La verificación del certificado y del nombre
+del sitio no se desactiva nunca.
 """
 
 from __future__ import annotations
 
+import ssl
 import time
 from collections.abc import Callable, Iterable
 from urllib.parse import urljoin, urlsplit
@@ -25,6 +31,13 @@ _TRANSITORIOS = {429, 500, 502, 503, 504}
 _MAX_REDIRECCIONES = 5
 
 
+def contexto_ssl(estricto: bool) -> ssl.SSLContext:
+    contexto = httpx.create_ssl_context()
+    if not estricto:
+        contexto.verify_flags &= ~ssl.VERIFY_X509_STRICT
+    return contexto
+
+
 class ErrorFuente(RuntimeError):
     """La fuente no entregó el recurso o la URL viola los guardarraíles."""
 
@@ -40,9 +53,12 @@ class FuenteHttp:
         pausa_entre_solicitudes_s: float = 1.0,
         timeout_s: float = 30.0,
         dormir: Callable[[float], None] = time.sleep,
+        x509_estricto: bool = True,
     ) -> None:
         self._permitidos = {d.lower() for d in dominios_permitidos}
-        self._cliente = cliente or httpx.Client(timeout=timeout_s)
+        self._cliente = cliente or httpx.Client(
+            timeout=timeout_s, verify=contexto_ssl(x509_estricto)
+        )
         self._reintentos = reintentos
         self._espera_base_s = espera_base_s
         self._pausa_s = pausa_entre_solicitudes_s

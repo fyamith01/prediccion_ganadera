@@ -1,7 +1,10 @@
+import ssl
+
 import httpx
 import pytest
 
-from prediccion_ganadera.adaptadores.fuente.http import ErrorFuente, FuenteHttp
+from prediccion_ganadera.adaptadores.fuente import http
+from prediccion_ganadera.adaptadores.fuente.http import ErrorFuente, FuenteHttp, contexto_ssl
 
 PERMITIDOS = ["www.subastas.example"]
 URL = "https://www.subastas.example/wp-content/uploads/2026/01/09-01-26.pdf"
@@ -105,3 +108,39 @@ def test_pausa_entre_solicitudes():
     fuente.descargar(URL)
 
     assert pausas == [1.5]
+
+
+def test_contexto_ssl_no_estricto_quita_solo_el_modo_estricto():
+    contexto = contexto_ssl(estricto=False)
+
+    assert not contexto.verify_flags & ssl.VERIFY_X509_STRICT
+    assert contexto.verify_mode == ssl.CERT_REQUIRED
+    assert contexto.check_hostname
+
+
+def test_contexto_ssl_estricto_conserva_la_bandera_por_defecto():
+    por_defecto = httpx.create_ssl_context().verify_flags & ssl.VERIFY_X509_STRICT
+
+    assert contexto_ssl(estricto=True).verify_flags & ssl.VERIFY_X509_STRICT == por_defecto
+
+
+@pytest.mark.parametrize("estricto", [True, False])
+def test_fuente_crea_su_cliente_con_el_contexto_ssl(monkeypatch, estricto):
+    pedidos: list[bool] = []
+    contexto = ssl.create_default_context()
+
+    def falso(estricto: bool) -> ssl.SSLContext:
+        pedidos.append(estricto)
+        return contexto
+
+    monkeypatch.setattr(http, "contexto_ssl", falso)
+
+    FuenteHttp(PERMITIDOS, x509_estricto=estricto)
+
+    assert pedidos == [estricto]
+
+
+def test_cliente_inyectado_no_crea_contexto_ssl(monkeypatch):
+    monkeypatch.setattr(http, "contexto_ssl", lambda estricto: pytest.fail("no debe llamarse"))
+
+    FuenteHttp(PERMITIDOS, cliente=httpx.Client(), x509_estricto=False)

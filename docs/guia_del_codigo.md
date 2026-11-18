@@ -37,7 +37,7 @@ típico. Las rutas de módulos son relativas a `src/prediccion_ganadera/`.
 | Módulo | Responsabilidad |
 |---|---|
 | `cli.py` | Comando `prediccion-ganadera`: un `_nombre` por subcomando (`_recolectar`, `_verificar`, `_run`, `_evaluar_modelo`, ...) y sus argumentos en `_parser()`. Códigos de salida: 0 bien, 1 sin datos o fallo esperado, 2 configuración |
-| `configuracion.py` | Lee y valida `config/agentes.yaml` con pydantic (backends, agentes, límites, rutas, fuente); arma el comando del harness sin shell |
+| `configuracion.py` | Lee y valida `config/agentes.yaml` con pydantic (backends, agentes, límites, rutas, fuente); arma el comando del harness sin shell; aplica las variables `PREDICCION_FUENTE_*` y `PREDICCION_SSL_NO_ESTRICTO` |
 
 ### Puertos (contratos)
 
@@ -53,7 +53,7 @@ típico. Las rutas de módulos son relativas a `src/prediccion_ganadera/`.
 |---|---|
 | `adaptadores/ia/cli_harness.py` | Ejecuta `claude -p`, `agy -p` o `agent -p` con tiempo límite, lee el sobre JSON y detecta rechazos «suaves» (`status`) |
 | `adaptadores/ia/ollama.py` | Llama a Ollama (`/api/generate`) con imágenes en base64, `format: "json"` y `num_ctx`; avisa si la respuesta se corta |
-| `adaptadores/fuente/http.py` | Cliente HTTP con cabeceras de navegador (`CABECERAS_NAVEGADOR`), reintentos, lista de dominios permitidos y redirecciones controladas |
+| `adaptadores/fuente/http.py` | Cliente HTTP con cabeceras de navegador (`CABECERAS_NAVEGADOR`), reintentos, lista de dominios permitidos y redirecciones controladas; `contexto_ssl` relaja solo el modo X.509 estricto si `PREDICCION_SSL_NO_ESTRICTO=1` |
 | `adaptadores/almacen/bronce.py` | PDF por SHA-256 en `data/bronce/pdfs/` + `manifiesto.jsonl`; rechaza lo que no empieza con `%PDF-` |
 | `adaptadores/almacen/plata.py` | Tabla Delta `tablas_extraidas` (una fila por celda): leer, reemplazar y marcar el estado de una tabla |
 | `adaptadores/almacen/revision.py` | Cola de revisión manual (Delta `cola_revision`) |

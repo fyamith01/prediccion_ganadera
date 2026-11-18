@@ -69,6 +69,34 @@ con código 2 y lo explican.
 La base escucha solo en `127.0.0.1` y guarda sus datos en el volumen `datos_postgres`. Los
 esquemas los crea el primer `cargar` o `run`; no hay migraciones manuales.
 
+### Redes con inspección TLS (proxy corporativo)
+
+Si la red intercepta HTTPS (un firewall que re-firma los certificados), `recolectar` falla con
+`CERTIFICATE_VERIFY_FAILED`. Primero agrega el certificado raíz de esa red al almacén del
+sistema y apunta Python a él con `SSL_CERT_FILE` (o `SSL_CERT_DIR`):
+
+```bash
+SITIO=<sitio>     # no uses HOST: en zsh esa variable cambia el prompt
+# Muestra la cadena: guarda como red.crt el certificado de la CA de la red (el autofirmado,
+# con issuer igual a subject, o si no aparece, el emisor del último bloque)
+openssl s_client -showcerts -connect "$SITIO:443" -servername "$SITIO" </dev/null
+sudo cp red.crt /usr/local/share/ca-certificates/red.crt && sudo update-ca-certificates
+echo 'SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt' >> .env
+```
+
+Si aun así falla con `Missing Authority Key Identifier`, es el modo estricto de Python 3.13
+(`ssl.VERIFY_X509_STRICT`): los certificados que emite el proxy no traen esa extensión.
+Agrega a `.env`:
+
+```dotenv
+PREDICCION_SSL_NO_ESTRICTO=1   # 1 quita el modo estricto; 0 o vacía no cambian la configuración
+```
+
+Solo acepta `1` o `0`. Sigue verificando el certificado y el nombre del sitio, pero el relajo
+aplica a todos los certificados de la fuente, no solo a los del proxy: úsalo solo en esa red.
+También se puede fijar con `x509_estricto: false` en la sección `fuente` de
+`config/agentes.yaml`; la variable en `1` tiene prioridad.
+
 ## 5. Primera corrida
 
 ```bash
@@ -180,6 +208,7 @@ en [evaluacion.md](evaluacion.md).
 | Síntoma | Causa probable | Solución |
 |---|---|---|
 | `recolectar` falla con 406 | La página bloquea clientes sin cabeceras de navegador | Ya se envían (`CABECERAS_NAVEGADOR` en `adaptadores/fuente/http.py`); si cambiaron, actualízalas |
+| `recolectar`: `CERTIFICATE_VERIFY_FAILED` o `Missing Authority Key Identifier` | Red con inspección TLS | Certificado raíz y `SSL_CERT_FILE`; si persiste, `PREDICCION_SSL_NO_ESTRICTO=1` (paso 4) |
 | `authentication required` o el backend devuelve error | La IA no está autenticada para el usuario que corre el proceso | Autenticar con ese usuario (paso 3) |
 | `cargar` omitido: «sin conexión a Postgres» | No está definido `PREDICCION_PG_DSN` | Exportar `.env` (paso 4) o ignorarlo si no usas Postgres |
 | `no se pudo cargar en Postgres` | El contenedor no está arriba o la clave no coincide | `docker compose ... ps`; revisar `.env` |

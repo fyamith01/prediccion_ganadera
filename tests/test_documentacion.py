@@ -87,3 +87,10 @@ def test_la_url_de_la_fuente_se_documenta_como_variable_de_entorno():
         texto = (RAIZ / documento).read_text(encoding="utf-8")
         assert "PREDICCION_FUENTE_URL" in texto, documento
         assert "subastas.example" not in texto, documento  # el dominio de prueba no es la fuente
+
+
+def test_el_modo_tls_no_estricto_se_documenta():
+    texto = (RAIZ / "docs/operacion.md").read_text(encoding="utf-8")
+
+    assert "PREDICCION_SSL_NO_ESTRICTO" in texto
+    assert "SSL_CERT_FILE" in texto

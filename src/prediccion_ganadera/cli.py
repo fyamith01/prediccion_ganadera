@@ -57,7 +57,9 @@ def _recolectar(args: argparse.Namespace) -> int:
         return 2
     agente = AgenteRecolector(
         ia=ia,
-        fuente=FuenteHttp(config.fuente.dominios_permitidos),
+        fuente=FuenteHttp(
+            config.fuente.dominios_permitidos, x509_estricto=config.fuente.x509_estricto
+        ),
         almacen=AlmacenBronce(config.rutas.datos / "bronce"),
         url_pagina=config.fuente.url,
         dominios_permitidos=config.fuente.dominios_permitidos,
