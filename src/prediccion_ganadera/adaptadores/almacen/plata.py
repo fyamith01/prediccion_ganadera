@@ -65,6 +65,7 @@ class TablaPlata(BaseModel):
     fecha: date | None
     especial: bool
     estado: str
+    extraido_en: datetime
     tabla: TablaExtraida
 
 
@@ -116,6 +117,20 @@ class AlmacenPlata:
         )
         if not filas:
             raise KeyError(clave)
+        return self._construir(clave, filas)
+
+    def tablas(self) -> list[TablaPlata]:
+        """Todas las tablas de plata con una sola lectura Delta, ordenadas por clave."""
+        grupos: dict[tuple[str, int, int], list[dict]] = {}
+        for fila in self.leer().to_pylist():
+            grupos.setdefault((fila["sha256"], fila["pagina"], fila["tabla"]), []).append(fila)
+        return [
+            self._construir(ClaveTabla(sha256=s, pagina=p, tabla=t), grupos[(s, p, t)])
+            for s, p, t in sorted(grupos)
+        ]
+
+    @staticmethod
+    def _construir(clave: ClaveTabla, filas: list[dict]) -> TablaPlata:
         celdas: dict[int, dict[int, str | None]] = {}
         for fila in filas:
             celdas.setdefault(fila["fila"], {})[fila["columna"]] = fila["valor"]
@@ -126,6 +141,7 @@ class AlmacenPlata:
             fecha=primera["fecha"],
             especial=primera["especial"],
             estado=primera["estado_verificacion"],
+            extraido_en=max(f["extraido_en"] for f in filas),
             tabla=TablaExtraida(
                 pagina=clave.pagina,
                 indice=clave.tabla,

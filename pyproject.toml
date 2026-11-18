@@ -13,6 +13,7 @@ dependencies = [
     "httpx>=0.28",
     "pandas>=3.0.5",
     "pdfplumber>=0.11.10",
+    "psycopg[binary]>=3.2",
     "pyarrow>=26.0.1",
     "pydantic>=2.11",
     "pypdfium2>=5.12",
@@ -24,6 +25,7 @@ prediccion-ganadera = "prediccion_ganadera.cli:main"
 
 [dependency-groups]
 dev = [
+    "pixeltable-pgserver>=0.7",
     "pytest>=8.4",
     "ruff>=0.12",
 ]
