@@ -140,7 +140,7 @@ def test_aplica_correcciones_de_celdas_que_aparecen_en_la_pagina(entorno):
 
 
 def test_rechaza_valores_que_no_estan_en_la_pagina_y_manda_a_revision(entorno):
-    ia = _IAFalsa(_veredicto(False, 0.9, [(12, 2, "9,999")]), ACEPTA, ACEPTA, ACEPTA)
+    ia = _IAFalsa(_veredicto(False, 0.9, [(19, 2, "9,999")]), ACEPTA, ACEPTA, ACEPTA)
 
     resultado = entorno.agente(ia).ejecutar(ahora=AHORA)
 

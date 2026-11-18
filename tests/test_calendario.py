@@ -6,9 +6,7 @@ import pytest
 from prediccion_ganadera.herramientas.calendario import VIERNES, reportar_huecos
 from prediccion_ganadera.herramientas.enlaces import listar_enlaces
 
-HTML_FUENTE = (
-    Path(__file__).resolve().parent / "fixtures" / "html" / "resumen_de_subastas.html"
-)
+HTML_FUENTE = Path(__file__).resolve().parent / "fixtures" / "html" / "resumen_de_subastas.html"
 
 
 def test_reporta_faltantes_fuera_de_calendario_y_duplicadas():

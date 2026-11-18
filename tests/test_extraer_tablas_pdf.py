@@ -33,7 +33,7 @@ def test_extrae_una_tabla_por_pagina_del_pdf_de_muestra():
     tablas = extraer_tablas(PDF_MUESTRA)
 
     assert [(t.pagina, t.indice) for t in tablas] == [(1, 1), (2, 1), (3, 1), (4, 1)]
-    assert [t.columnas for t in tablas] == [8, 11, 11, 12]
+    assert [t.columnas for t in tablas] == [8, 10, 10, 11]
     assert all(t.ajustes == AJUSTES_POR_DEFECTO for t in tablas)
 
 

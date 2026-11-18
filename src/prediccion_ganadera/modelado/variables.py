@@ -100,8 +100,16 @@ def _compacto(texto: str) -> str:
     return re.sub(r"\s", "", texto).upper()
 
 
+# El título «RESUMEN GENERAL DE LA FERIA» está en el encabezado de la página; según
+# cómo se alinee el texto de arriba (nombre de la entidad, NIT), el extractor mete o no
+# esos renglones en la tabla, así que el título puede quedar entre las primeras filas.
+_FILAS_ENCABEZADO = 6
+
+
 def es_resumen_general(tabla: TablaExtraida) -> bool:
-    return any("RESUMENGENERAL" in _compacto(_texto(f.celdas)) for f in tabla.filas[:3])
+    return any(
+        "RESUMENGENERAL" in _compacto(_texto(f.celdas)) for f in tabla.filas[:_FILAS_ENCABEZADO]
+    )
 
 
 def _entero(token: str) -> int:

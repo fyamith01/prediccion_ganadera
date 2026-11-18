@@ -3,9 +3,7 @@ from pathlib import Path
 
 from prediccion_ganadera.cli import main
 
-FIXTURE = (
-    Path(__file__).resolve().parent / "fixtures" / "html" / "resumen_de_subastas.html"
-)
+FIXTURE = Path(__file__).resolve().parent / "fixtures" / "html" / "resumen_de_subastas.html"
 
 
 def _config(tmp_path: Path) -> Path:
