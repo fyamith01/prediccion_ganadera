@@ -106,7 +106,7 @@ def ejecutar_modelado(
         )
     version = RegistroModelos(datos / "modelos").guardar(resultado, ahora=ahora)
     escritas = AlmacenOro(datos / "oro").guardar_predicciones(version, resultado, ahora=ahora)
-    return ResumenModelado(
+    resumen = ResumenModelado(
         version=version,
         fuente=fuente,
         incluye_no_verificadas=incluir_no_verificadas,
@@ -122,3 +122,11 @@ def ejecutar_modelado(
         recomendaciones=recomendaciones(resultado.ranking),
         predicciones_oro=escritas,
     )
+    RegistroModelos(datos / "modelos").guardar_resumen(version, resumen.model_dump(mode="json"))
+    return resumen
+
+
+def cargar_resumen(datos: Path, version: str | None = None) -> ResumenModelado:
+    """El resumen guardado junto al modelo (la versión más reciente si no se indica);
+    `KeyError` si no hay modelo o si la versión no tiene resumen."""
+    return ResumenModelado.model_validate(RegistroModelos(datos / "modelos").leer_resumen(version))

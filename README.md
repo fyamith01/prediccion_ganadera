@@ -166,7 +166,8 @@ uv run prediccion-ganadera entrenar --json                    # resumen completo
   la diferencia entre fechas no supera el error de validación, se indica que no es
   distinguible.
 - **Registro.** Cada entrenamiento queda en `data/modelos/<version>/` (`modelo.json`,
-  `metadatos.json` con datos, parámetros, métricas y confianza) y en
+  `metadatos.json` con datos, parámetros, métricas y confianza; `resumen.json` con el
+  resumen que lee el reportero) y en
   `data/modelos/registro.jsonl`; las predicciones van a la tabla Delta
   `data/oro/predicciones`. Nada se sobrescribe.
 - **Sin histórico suficiente** el comando no entrena, explica cuántas subastas hay y

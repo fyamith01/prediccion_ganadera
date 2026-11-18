@@ -7,12 +7,13 @@ permite comparar luego lo predicho con lo que pasó en la subasta.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 import pyarrow as pa
 import pyarrow.compute as pc
 from deltalake import DeltaTable, write_deltalake
+from pydantic import BaseModel, ConfigDict
 
 from prediccion_ganadera.modelado.entrenamiento import ResultadoEntrenamiento
 
@@ -33,6 +34,20 @@ ESQUEMA_PREDICCIONES = pa.schema(
 )
 
 
+class PrediccionOro(BaseModel):
+    """Una fila de `oro.predicciones` (precios en pesos por kilo)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    fecha: date
+    categoria: str
+    horizonte: int
+    ultimo_precio: float
+    precio_predicho: float
+    variacion_esperada: float
+    error_esperado: float
+
+
 class AlmacenOro:
     def __init__(self, raiz: Path) -> None:
         self.ruta_predicciones = Path(raiz) / "predicciones"
@@ -42,6 +57,19 @@ class AlmacenOro:
             return set()
         tabla = DeltaTable(self.ruta_predicciones).to_pyarrow_table(columns=["version"])
         return set(pc.unique(tabla["version"]).to_pylist())
+
+    def leer_predicciones(self, version: str) -> list[PrediccionOro]:
+        """Las predicciones de una versión, por fecha y categoría (vacío si no hay)."""
+        if version not in self._versiones():
+            return []
+        tabla = DeltaTable(self.ruta_predicciones).to_pyarrow_table(
+            columns=["version", *PrediccionOro.model_fields]
+        )
+        filas = tabla.filter(pc.equal(tabla["version"], version)).drop_columns("version")
+        return sorted(
+            (PrediccionOro.model_validate(f) for f in filas.to_pylist()),
+            key=lambda p: (p.fecha, p.categoria),
+        )
 
     def guardar_predicciones(
         self, version: str, resultado: ResultadoEntrenamiento, *, ahora: datetime

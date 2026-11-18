@@ -119,7 +119,9 @@ categoría, escrita una vez por versión.
 `data/modelos/registro.jsonl`, un objeto JSON por entrenamiento. Cada versión tiene su
 carpeta `data/modelos/<version>/` con `modelo.json` (booster XGBoost) y `metadatos.json`
 (rango de fechas, huella de los datos, variables, parámetros, métricas por horizonte y
-motivos de la confianza).
+motivos de la confianza), más `resumen.json`: el resumen del modelado (`ResumenModelado`:
+fuente, descartes, métricas, confianza y recomendaciones), que es la entrada del agente
+reportero.
 
 | Campo | Tipo | Descripción |
 |---|---|---|

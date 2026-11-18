@@ -5,7 +5,8 @@ data/modelos/
 ├── registro.jsonl              # una línea por versión (fecha, confianza, error)
 └── <version>/
     ├── modelo.json             # booster XGBoost (formato JSON nativo)
-    └── metadatos.json          # datos, variables, parámetros, métricas y confianza
+    ├── metadatos.json          # datos, variables, parámetros, métricas y confianza
+    └── resumen.json            # resumen del modelado (lo que lee el agente reportero)
 ```
 
 La versión es la marca de tiempo UTC del entrenamiento; si ya existe se le agrega un
@@ -95,3 +96,23 @@ class RegistroModelos:
             carpeta / "modelo.json", metadatos["categorias"], metadatos["parametros"]
         )
         return modelo, metadatos
+
+    def guardar_resumen(self, version: str, resumen: dict[str, Any]) -> None:
+        carpeta = self.raiz / version
+        if not carpeta.is_dir():
+            raise KeyError(version)
+        (carpeta / "resumen.json").write_text(
+            json.dumps(resumen, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
+    def leer_resumen(self, version: str | None = None) -> dict[str, Any]:
+        """El resumen de la versión pedida (o la más reciente); `KeyError` si no existe."""
+        if version is None:
+            entradas = self.listar()
+            if not entradas:
+                raise KeyError("no hay modelos registrados")
+            version = entradas[-1]["version"]
+        ruta = self.raiz / version / "resumen.json"
+        if not ruta.is_file():
+            raise KeyError(version)
+        return json.loads(ruta.read_text(encoding="utf-8"))
