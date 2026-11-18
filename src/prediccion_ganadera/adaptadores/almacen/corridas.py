@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import psycopg
+from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from prediccion_ganadera.adaptadores.almacen.postgres import crear_esquemas
@@ -27,15 +28,21 @@ class RegistroJsonl:
         with self.ruta.open("a", encoding="utf-8") as archivo:
             archivo.write(registro.model_dump_json() + "\n")
 
+    def historial(self) -> list[RegistroCorrida]:
+        """Todas las versiones guardadas, en orden de escritura (para evaluar trayectorias)."""
+        if not self.ruta.exists():
+            return []
+        return [
+            RegistroCorrida.model_validate_json(linea)
+            for linea in self.ruta.read_text(encoding="utf-8").splitlines()
+            if linea.strip()
+        ]
+
     def ultimas(self) -> dict[str, RegistroCorrida]:
         """Versión más reciente de cada corrida, en orden de primera aparición."""
-        if not self.ruta.exists():
-            return {}
         ultimas: dict[str, RegistroCorrida] = {}
-        for linea in self.ruta.read_text(encoding="utf-8").splitlines():
-            if linea.strip():
-                registro = RegistroCorrida.model_validate_json(linea)
-                ultimas[registro.id_corrida] = registro
+        for registro in self.historial():
+            ultimas[registro.id_corrida] = registro
         return ultimas
 
 
@@ -56,6 +63,13 @@ ON CONFLICT (id_corrida) DO UPDATE SET
     pasos = EXCLUDED.pasos
 """
 
+_LEER = """
+SELECT id_corrida, estado, iniciada_en, actualizada_en, terminada_en, tokens, costo_usd,
+       error, pasos
+FROM operacion.runs
+ORDER BY iniciada_en, id_corrida
+"""
+
 
 class RegistroPostgres:
     """Conexión corta por escritura: el registro no retiene conexiones durante la corrida."""
@@ -72,3 +86,15 @@ class RegistroPostgres:
             parametros = registro.model_dump()
             parametros["pasos"] = Jsonb(registro.model_dump(mode="json")["pasos"])
             conexion.execute(_UPSERT, parametros)
+
+    def leer(self) -> list[RegistroCorrida]:
+        """Última versión de cada corrida (la tabla no guarda el historial), por inicio.
+
+        No crea esquemas: si la tabla todavía no existe, no hay corridas que leer.
+        """
+        with psycopg.connect(self._dsn) as conexion:
+            if conexion.execute("SELECT to_regclass('operacion.runs')").fetchone()[0] is None:
+                return []
+            cursor = conexion.cursor(row_factory=dict_row)
+            filas = cursor.execute(_LEER).fetchall()
+        return [RegistroCorrida.model_validate(fila) for fila in filas]
