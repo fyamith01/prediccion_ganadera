@@ -48,6 +48,8 @@ def test_envia_prompt_e_imagenes_en_base64_y_lee_la_respuesta(tmp_path: Path):
         "prompt": "compara",
         "images": [base64.b64encode(b"\x89PNG falso").decode()],
         "stream": False,
+        "format": "json",
+        "options": {"num_ctx": 16384},
     }
 
 
@@ -60,6 +62,22 @@ def test_sin_imagenes_no_envia_el_campo():
 
     assert _proveedor(manejador).completar("hola").texto == "ok"
     assert "images" not in cuerpos[0]
+
+
+def test_respuesta_cortada_por_el_contexto_avisa_como_subirlo():
+    respuesta = httpx.Response(
+        200, json={"response": "```json\n{", "done": True, "done_reason": "length"}
+    )
+
+    with pytest.raises(ErrorProveedorIA, match=r"cortada.*16384.*num_ctx.*config/agentes\.yaml"):
+        _proveedor(lambda pedido: respuesta).completar("hola")
+
+
+@pytest.mark.parametrize("fin", [{"done_reason": "stop"}, {}])
+def test_respuesta_terminada_normalmente_o_sin_done_reason_no_es_cortada(fin):
+    respuesta = httpx.Response(200, json={"response": "{}", "done": True, **fin})
+
+    assert _proveedor(lambda pedido: respuesta).completar("hola").texto == "{}"
 
 
 @pytest.mark.parametrize(

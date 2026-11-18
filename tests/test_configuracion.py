@@ -41,6 +41,7 @@ def test_carga_backends_tipados_y_valores_por_defecto(tmp_path):
     assert isinstance(config.backends["claude"], BackendCliHarness)
     assert isinstance(config.backends["local"], BackendOllama)
     assert config.backends["local"].url == "http://localhost:11434"
+    assert config.backends["local"].num_ctx == 16384
     assert config.limites.max_iteraciones_rectificacion == 3
     assert config.rutas.datos == Path("data")
     assert config.rutas.reportes == Path("reportes")
@@ -77,6 +78,15 @@ def test_tipo_de_backend_desconocido_es_invalido(tmp_path):
     contenido = CONFIG_MINIMA.replace("tipo: ollama", "tipo: magia")
 
     with pytest.raises(ErrorConfiguracion):
+        cargar_configuracion(escribir(tmp_path, contenido))
+
+
+def test_num_ctx_de_ollama_debe_ser_positivo(tmp_path):
+    contenido = CONFIG_MINIMA.replace(
+        "modelo: qwen2.5vl:3b", "modelo: qwen2.5vl:3b\n    num_ctx: 0"
+    )
+
+    with pytest.raises(ErrorConfiguracion, match=r"num_ctx[\s\S]*greater than 0"):
         cargar_configuracion(escribir(tmp_path, contenido))
 
 

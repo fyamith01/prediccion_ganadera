@@ -3,6 +3,10 @@
 Las imágenes viajan en base64 dentro de la petición, así que sirve para el verificador
 visual con un modelo de visión (p. ej. `qwen2.5vl`). Sin `stream`: una sola respuesta
 JSON con el texto y los conteos de tokens. Un modelo local no tiene costo en US$.
+
+Todos los agentes piden JSON, así que se envía `format: "json"`, y `options.num_ctx` fija
+la ventana de contexto. Si Ollama corta la respuesta por esa ventana
+(`done_reason: "length"`), se avisa con el valor que hay que subir.
 """
 
 from __future__ import annotations
@@ -32,6 +36,8 @@ class ProveedorOllama:
         if imagenes:
             cuerpo["images"] = [_base64(imagen) for imagen in imagenes]
         cuerpo["stream"] = False
+        cuerpo["format"] = "json"
+        cuerpo["options"] = {"num_ctx": self._backend.num_ctx}
         url = self._backend.url.rstrip("/")
         try:
             with httpx.Client(
@@ -42,7 +48,7 @@ class ProveedorOllama:
             raise ErrorProveedorIA(f"Ollama no respondió en {self._backend.timeout_s} s") from None
         except httpx.TransportError as error:
             raise ErrorProveedorIA(f"no se pudo conectar con Ollama en {url}: {error}") from None
-        return _interpretar(respuesta)
+        return _interpretar(respuesta, num_ctx=self._backend.num_ctx)
 
 
 def _base64(imagen: Path) -> str:
@@ -56,7 +62,7 @@ def _entero(valor: Any) -> int | None:
     return valor if isinstance(valor, int) else None
 
 
-def _interpretar(respuesta: httpx.Response) -> RespuestaIA:
+def _interpretar(respuesta: httpx.Response, *, num_ctx: int) -> RespuestaIA:
     try:
         datos = respuesta.json()
     except ValueError:
@@ -71,6 +77,11 @@ def _interpretar(respuesta: httpx.Response) -> RespuestaIA:
     texto = datos.get("response")
     if not isinstance(texto, str):
         raise ErrorProveedorIA("la respuesta de Ollama no trae 'response'")
+    if datos.get("done_reason") == "length":
+        raise ErrorProveedorIA(
+            f"respuesta de Ollama cortada: llenó la ventana de contexto de {num_ctx} tokens; "
+            "sube `num_ctx` del backend en config/agentes.yaml"
+        )
     return RespuestaIA(
         texto=texto.strip(),
         tokens_entrada=_entero(datos.get("prompt_eval_count")),

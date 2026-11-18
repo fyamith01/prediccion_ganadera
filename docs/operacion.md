@@ -222,6 +222,16 @@ resultado lo advierte); en producción se entrena solo con lo verificado. Para d
 agentes a Claude, `git checkout config/agentes.yaml`. Para empezar de cero, borra `data/` y
 `reportes/` (y `docker compose ... down -v` para la base).
 
+**Ventana de contexto (`num_ctx`).** El adaptador de Ollama pide `format: "json"` y una
+ventana de contexto de `num_ctx` tokens (16384 por defecto; Ollama usa 4096 si no se le
+pide otra). La imagen de una página más sus filas ocupa varios miles de tokens; si la
+ventana se llena, Ollama corta la respuesta y el paso falla con «respuesta de Ollama
+cortada». En ese caso sube `num_ctx` en el backend `local` de `config/agentes.yaml`
+(p. ej. `num_ctx: 32768`); más contexto usa más memoria y hace cada llamada más lenta.
+
+**Límite conocido.** Si la página 1 de un PDF viene escaneada (imagen sin texto), el
+extractor no encuentra tablas y esa subasta queda fuera del entrenamiento.
+
 ## Resumen de comandos
 
 | Comando | Qué hace |

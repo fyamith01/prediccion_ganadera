@@ -63,6 +63,9 @@ class BackendOllama(_Estricto):
     modelo: str = Field(min_length=1)
     url: str = "http://localhost:11434"
     timeout_s: int = Field(default=600, gt=0)
+    # Ventana de contexto (tokens) que se pide a Ollama; su valor por defecto (4096) no
+    # alcanza para una imagen de página más sus filas, y la respuesta llega cortada.
+    num_ctx: int = Field(default=16384, gt=0)
 
 
 Backend = Annotated[BackendCliHarness | BackendOllama, Field(discriminator="tipo")]

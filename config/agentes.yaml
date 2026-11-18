@@ -15,6 +15,7 @@ backends:
   local:             # IA local con Ollama (modelo de visión)
     tipo: ollama
     modelo: qwen2.5vl:3b
+    # num_ctx: 16384   # contexto en tokens; súbelo si sale «respuesta de Ollama cortada»
 
 agentes:
   recolector: {backend: claude}
