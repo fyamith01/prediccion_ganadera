@@ -5,12 +5,86 @@ extrae sus tablas, las verifica visualmente con un modelo de IA configurable, la
 en un Data Lake (bronce/plata/oro con Delta Lake) y en PostgreSQL, entrena un modelo XGBoost
 para recomendar cuándo y qué ganado vender, y publica resúmenes periódicos en PDF.
 
-> Estado: en construcción. Las secciones marcadas como *pendiente* se completan a medida que
-> se implementa cada componente.
+Fuente: los resúmenes semanales (viernes) que publica la fuente configurada en
+<https://www.subastas.example/resumen-de-subastas/>.
+
+| Documento | Para qué |
+|---|---|
+| Este README | Qué hace el sistema, cómo está construido y cómo se usa cada comando |
+| [docs/operacion.md](docs/operacion.md) | Puesta en producción paso a paso: instalación, programación, reanudación, revisión manual, problemas comunes |
+| [docs/guia_del_codigo.md](docs/guia_del_codigo.md) | Qué hace cada carpeta y archivo, y qué tocar para cada cambio típico |
+| [docs/diccionario_datos.md](docs/diccionario_datos.md) | Cada campo de bronce, plata, oro y Postgres |
+| [docs/evaluacion.md](docs/evaluacion.md) | Métricas de extracción, de trayectorias de los agentes y del modelo |
+| [docs/aprendizaje_federado.md](docs/aprendizaje_federado.md) | XGBoost federado simulado frente al modelo central |
 
 ## Arquitectura
 
-*Pendiente:* diagrama de agentes, herramientas y flujo de datos.
+Una corrida es un grafo de estados (LangGraph) con seis pasos. Los agentes deciden y
+juzgan; las herramientas deterministas hacen el trabajo pesado (descargar, extraer,
+comprobar, entrenar), y ninguna cifra la inventa un modelo de lenguaje.
+
+```mermaid
+flowchart LR
+    W[(subastas.example)] --> R
+    subgraph Corrida["run (LangGraph, reanudable)"]
+        R[1 recolectar<br/>agente recolector] --> X[2 extraer<br/>herramienta pdfplumber]
+        X --> V[3 verificar<br/>agente verificador visual]
+        V --> C[4 cargar<br/>Postgres, si hay DSN]
+        C --> M[5 modelar<br/>XGBoost]
+        M --> P[6 reportar<br/>agente reportero]
+    end
+    R -->|PDF por SHA-256| B[(bronce)]
+    X -->|celdas| PL[(plata<br/>Delta Lake)]
+    V -->|corrige / marca| PL
+    V -->|no resueltas| Q[(cola de revisión)]
+    C --> PG[(Postgres<br/>raw · staging · marts)]
+    M --> O[(oro: predicciones<br/>+ registro de modelos)]
+    P --> PDF["reportes/aaaa-mm-dd/*.pdf"]
+```
+
+El bucle del verificador, el corazón del sistema (cuándo se detiene y qué hace con lo que
+no puede resolver):
+
+```mermaid
+flowchart TD
+    T[tabla pendiente en plata] --> D{comprobaciones deterministas<br/>contra el texto de la página}
+    D -->|fallan| RD[rectificar sin IA:<br/>re-extraer con otros ajustes<br/>o anexar renglones faltantes]
+    RD --> L{¿quedan rectificaciones?<br/>máx. limites.max_iteraciones_rectificacion}
+    L -->|sí| D
+    L -->|no| REV[en_revision + cola de revisión]
+    D -->|cuadran| IA{modelo de visión:<br/>imagen de la página vs celdas}
+    IA -->|coincide y confianza ≥ mínima| OK[verificada / corregida]
+    IA -->|correcciones de celdas| AP[aplicar solo si el valor<br/>aparece en el texto de la página]
+    AP --> L
+    IA -->|sin backend o sin presupuesto| PEN[sigue pendiente]
+```
+
+Arquitectura hexagonal: el dominio no sabe qué IA, qué almacén ni qué sitio web usa.
+
+| Capa | Carpeta (`src/prediccion_ganadera/`) | Contiene |
+|---|---|---|
+| Puertos | `puertos/` | Contratos: `ProveedorIA`, registro de corridas, renderizador de reportes |
+| Adaptadores | `adaptadores/` | IA (`cli_harness`, `ollama`), fuente HTTP, almacenes (bronce, plata, oro, Postgres, modelos, corridas), PDF |
+| Herramientas | `herramientas/` | Funciones deterministas con entradas y salidas tipadas que usan los agentes |
+| Agentes | `agentes/` | Recolector, verificador y reportero: deciden con IA dentro de límites |
+| Modelado | `modelado/` | Variables, dataset, validación temporal, XGBoost, federado |
+| Orquestación | `orquestacion/` | Grafo LangGraph, checkpointer SQLite, pasos reales |
+| Evaluación | `evaluacion/` | Exactitud de extracción, trayectorias y modelo |
+| Entrada | `cli.py`, `configuracion.py` | Comando `prediccion-ganadera` y validación de `config/agentes.yaml` |
+
+El detalle archivo por archivo está en la [guía del código](docs/guia_del_codigo.md).
+
+### Diseño de los agentes
+
+| Agente | Qué decide | Herramientas | Límites y salvaguardas |
+|---|---|---|---|
+| Recolector | La fecha de un enlace cuando el texto y el nombre del archivo no coinciden (elige una de las candidatas o se abstiene) | `listar_enlaces`, resolución de fechas, calendario de viernes, descarga | Solo los dominios de `fuente.dominios_permitidos`; redirecciones a otros hosts rechazadas; cuerpos que no son PDF rechazados; lo dudoso va a revisión, nunca se inventa una fecha |
+| Verificador | Si la tabla extraída coincide con la imagen de la página y qué celdas corregir | Render de página, líneas de texto, comprobaciones, re-extracción | Primero lo que el código puede probar; correcciones aceptadas solo si el valor está en el texto de la página; máximo de rectificaciones; confianza mínima; presupuesto de tokens |
+| Reportero | La narrativa del reporte sobre cifras ya calculadas | Cifras del reporte, renderizador PDF | Todo número de la narrativa debe estar en las cifras; un reintento y, si falla, narrativa determinista |
+
+Memoria: a corto plazo, el estado tipado de la corrida en el grafo (checkpoint después de
+cada paso); a largo plazo, plata con su historial Delta, la cola de revisión, el registro de
+corridas (`data/corridas/corridas.jsonl` y `operacion.runs`) y el registro de modelos.
 
 ## Capas de datos
 
@@ -25,6 +99,27 @@ para recomendar cuándo y qué ganado vender, y publica resúmenes periódicos e
 Cada agente usa el backend definido en [`config/agentes.yaml`](config/agentes.yaml):
 un harness en modo headless (`claude -p`, `agy -p`, `agent -p` de Cursor) o un modelo local con
 Ollama. Los comandos se ejecutan sin shell y el prompt viaja como un único argumento.
+
+Para cambiar de IA antes de lanzar una corrida, edita solo `agentes.<nombre>.backend`:
+
+```yaml
+agentes:
+  recolector: {backend: claude}
+  verificador: {backend: local}      # visión con Ollama (qwen2.5vl:3b) en vez de Claude Code
+  reportero: {backend: antigravity}
+```
+
+| Backend | Requisito | Visión |
+|---|---|---|
+| `claude` (Claude Code) | `claude` instalado y autenticado | Sí, recibe la ruta de la imagen (falta probarlo con una llamada real) |
+| `antigravity` (`agy`) | Un primer `agy` interactivo para autenticarse | No verificada en modo headless: úsalo en agentes de texto |
+| `cursor` (`agent`) | `CURSOR_API_KEY` | Sí, por ruta (falta probarlo con una llamada real) |
+| `local` (Ollama) | `ollama serve` y el modelo descargado; sin GPU es lento | Sí, imagen en base64 |
+
+Para otro harness, agrega un backend `cli_harness` con su comando y el marcador `{prompt}`.
+`--sin-ia` en cualquier comando omite la IA: lo dudoso queda en revisión o pendiente. La
+entrada `rectificador` de la configuración está reservada: hoy el verificador rectifica con
+su propio backend (`agentes.verificador`).
 
 ## Cómo ejecutarlo
 
@@ -244,4 +339,19 @@ uv run prediccion-ganadera evaluar modelo --seguimiento   # validación y error 
 
 ## Decisiones de diseño
 
-*Pendiente.*
+| Decisión | Por qué |
+|---|---|
+| LangGraph con checkpointer SQLite | Estado tipado, aristas condicionales y reanudación tras una caída sin depender de que Postgres esté arriba |
+| IA solo donde el código no alcanza | Las comprobaciones deterministas (filas, totales) se hacen antes de llamar al modelo de visión; las cifras del reporte se calculan en código |
+| Backends de IA intercambiables por configuración | El mismo agente funciona con Claude Code, Antigravity, Cursor u Ollama; cambiar de proveedor no toca código |
+| Delta Lake para plata y oro | Escrituras ACID, historial (time travel) y esquema exigido sin necesitar Spark (`deltalake`) |
+| Plata en formato largo (una fila por celda) | Los PDF tienen tablas de 8 a 12 columnas con encabezados partidos; el verificador corrige celdas sueltas |
+| Idempotencia por SHA-256 | Descargar, extraer y cargar dos veces no duplica nada; el mismo PDF bajo dos URL se procesa una vez |
+| Postgres opcional | `raw` guarda todo; `staging` solo tablas validadas; sin DSN la corrida sigue y `cargar` se omite |
+| Validación temporal y confianza honesta | Pliegues por fecha sin mezclar el futuro; el nivel de confianza explica por qué es bajo cuando el histórico es corto |
+| Federado como simulación documentada | Todos los datos vienen de una asociación; se mide cuánta precisión cuesta no centralizar en vez de afirmar privacidad real |
+| Evaluación en tres niveles | Datos (extracción), proceso (trayectorias de los agentes) y resultado (modelo), con métricas reproducibles |
+
+## Licencia
+
+[MIT](LICENSE).
