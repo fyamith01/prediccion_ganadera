@@ -49,12 +49,19 @@ def test_ejecuta_los_pasos_en_orden_y_acumula_el_uso(checkpointer):
 
     estado = orquestador.iniciar("corrida-1")
 
-    assert ORDEN_PASOS == ("recolectar", "extraer", "verificar", "cargar", "modelar")
+    assert ORDEN_PASOS == (
+        "recolectar",
+        "extraer",
+        "verificar",
+        "cargar",
+        "modelar",
+        "reportar",
+    )
     assert list(estado["pasos"]) == list(ORDEN_PASOS)
     assert all(pasos.llamadas[n] == 1 for n in ORDEN_PASOS)
     assert estado["estado"] == "completada"
-    assert estado["tokens"] == 50
-    assert estado["costo_usd"] == pytest.approx(2.5)
+    assert estado["tokens"] == 60
+    assert estado["costo_usd"] == pytest.approx(3.0)
     assert estado["pasos"]["extraer"]["resumen"] == {"paso": "extraer"}
     assert estado["pasos"]["extraer"]["duracion_s"] >= 0
     assert orquestador.pendientes("corrida-1") == ()
@@ -106,9 +113,11 @@ def test_reanuda_tras_una_caida_sin_repetir_los_pasos_terminados(tmp_path: Path)
         estado = orquestador.reanudar("c")
 
     assert estado["estado"] == "completada"
-    assert pasos.llamadas == Counter(recolectar=1, extraer=1, verificar=2, cargar=1, modelar=1)
+    assert pasos.llamadas == Counter(
+        recolectar=1, extraer=1, verificar=2, cargar=1, modelar=1, reportar=1
+    )
     assert estado["pasos"]["verificar"]["resumen"] == {"intento": 2}
-    assert estado["tokens"] == 40
+    assert estado["tokens"] == 50
 
 
 def test_no_reanuda_una_corrida_terminada_ni_inexistente(checkpointer):

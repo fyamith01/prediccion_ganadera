@@ -52,6 +52,7 @@ backends:
 agentes:
   recolector: {{backend: falso}}
   verificador: {{backend: falso}}
+  reportero: {{backend: falso}}
 rutas: {{datos: "{datos}", reportes: "{tmp_path / "reportes"}"}}
 fuente:
   url: https://www.subastas.example/resumen-de-subastas/
@@ -90,6 +91,7 @@ def test_corrida_completa_sin_ia_carga_postgres_y_registra_la_corrida(
     assert pasos["cargar"]["resumen"]["tablas_nuevas"] == 4
     # una sola subasta y sin validar: el modelo no se entrena y la corrida lo dice
     assert pasos["modelar"]["omitido"].startswith("sin datos suficientes")
+    assert pasos["reportar"]["omitido"] == "no hay un modelo nuevo en esta corrida"
     with psycopg.connect(postgres_dsn) as conexion:
         runs = conexion.execute("SELECT id_corrida, estado FROM operacion.runs").fetchall()
         tablas = conexion.execute("SELECT count(*) FROM raw.tablas").fetchone()
@@ -106,6 +108,7 @@ def test_sin_dsn_omite_la_carga(config: Path, capsys):
     assert "Corrida c1: completada" in salida
     assert "cargar: omitido (sin conexión a Postgres" in salida
     assert "modelar: omitido (sin datos suficientes" in salida
+    assert "reportar: omitido (no hay un modelo nuevo" in salida
     assert (config.parent / "data" / "corridas" / "checkpoints.sqlite").exists()
 
 

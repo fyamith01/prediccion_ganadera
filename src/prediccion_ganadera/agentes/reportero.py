@@ -15,16 +15,24 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import datetime
+from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from prediccion_ganadera.adaptadores.almacen.oro import AlmacenOro
+from prediccion_ganadera.adaptadores.reportes.salida import publicar_reporte
 from prediccion_ganadera.herramientas.cifras_reporte import (
     CifrasReporte,
     Narrativa,
+    calcular_cifras,
     narrativa_determinista,
     numeros_no_permitidos,
 )
+from prediccion_ganadera.modelado.modelador import ResumenModelado
 from prediccion_ganadera.puertos.ia import ErrorProveedorIA, ProveedorIA, UsoIA
+from prediccion_ganadera.puertos.reportes import Renderizador
 
 _OBJETO_JSON = re.compile(r"\{.*\}", re.DOTALL)
 MAX_PUNTOS = 5
@@ -61,6 +69,20 @@ class ResultadoReporte(BaseModel):
     uso: UsoIA
 
 
+class ResumenReporte(BaseModel):
+    """Lo que deja una publicación: rutas, origen de la narrativa y consumo de IA."""
+
+    model_config = ConfigDict(frozen=True)
+
+    version: str
+    pdf: str
+    registro_json: str  # cifras + narrativa, para auditar el PDF
+    narrativa: Literal["ia", "determinista"]
+    motivo: str | None
+    rechazos: list[str]
+    uso: UsoIA
+
+
 class AgenteReportero:
     def __init__(
         self,
@@ -72,6 +94,32 @@ class AgenteReportero:
         self._ia = ia
         self._presupuesto = presupuesto_tokens
         self._max_intentos = max_intentos
+
+    def publicar(
+        self,
+        resumen: ResumenModelado,
+        *,
+        datos: Path,
+        reportes: Path,
+        renderizador: Renderizador,
+        ahora: datetime,
+    ) -> ResumenReporte:
+        """Cifras (resumen + oro) → narrativa → `reportes/<aaaa-mm-dd>/`."""
+        predicciones = AlmacenOro(datos / "oro").leer_predicciones(resumen.version)
+        cifras = calcular_cifras(resumen, predicciones)
+        resultado = self.redactar(cifras)
+        publicado = publicar_reporte(
+            reportes, cifras, resultado.narrativa, renderizador, ahora=ahora
+        )
+        return ResumenReporte(
+            version=resumen.version,
+            pdf=str(publicado.pdf),
+            registro_json=str(publicado.json),
+            narrativa=resultado.narrativa.origen,
+            motivo=resultado.narrativa.motivo,
+            rechazos=resultado.rechazos,
+            uso=resultado.uso,
+        )
 
     def redactar(self, cifras: CifrasReporte) -> ResultadoReporte:
         uso = UsoIA()

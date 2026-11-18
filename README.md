@@ -105,7 +105,7 @@ Las pruebas de Postgres no usan Docker ni red: levantan un PostgreSQL 16 embebid
 ## Corrida completa (orquestador)
 
 `run` encadena los agentes en un grafo de estados de LangGraph:
-recolectar → extraer → verificar → cargar → modelar.
+recolectar → extraer → verificar → cargar → modelar → reportar.
 
 ```bash
 uv run prediccion-ganadera run                          # corrida con id = hora UTC
@@ -122,7 +122,8 @@ uv run prediccion-ganadera run --solo-listar --json     # sin descargas; estado 
 - **Paradas.** Un fallo esperado (la fuente no responde, Postgres no acepta la carga)
   termina la corrida como `fallida` sin ejecutar los pasos siguientes (código de salida 1).
   Sin conexión a Postgres el paso `cargar` se omite y la corrida termina igual. Si no hay
-  histórico validado suficiente, `modelar` se omite con el motivo (ver «Modelo predictivo»).
+  histórico validado suficiente, `modelar` se omite con el motivo (ver «Modelo predictivo»)
+  y `reportar` también, porque no hay un modelo nuevo que reportar.
 - **Presupuesto.** `limites.presupuesto_tokens_corrida` es de la corrida completa: cada
   agente recibe lo que dejaron los anteriores.
 - **Registro.** Cada inicio, reanudación, final o caída queda en
@@ -191,6 +192,32 @@ especial. Como todos los datos vienen de una misma asociación, la comparación 
 simulación: mide cuánta precisión cuesta no juntar los datos. El razonamiento, las
 decisiones técnicas y los resultados están en
 [docs/aprendizaje_federado.md](docs/aprendizaje_federado.md).
+
+## Reporte periódico
+
+`reportar` publica en PDF el resumen de un modelo entrenado (el más reciente o
+`--version`); en `run` es el último paso y reporta el modelo de esa corrida.
+
+```bash
+uv run prediccion-ganadera reportar                 # narrativa con el backend del reportero
+uv run prediccion-ganadera reportar --sin-ia        # narrativa determinista (plantillas)
+uv run prediccion-ganadera reportar --version 20261118T120000Z --json
+```
+
+- **Cifras en código, narrativa con IA.** Los indicadores, las recomendaciones, la
+  precisión por horizonte y las predicciones por fecha se calculan a partir de
+  `data/modelos/<version>/resumen.json` y de `data/oro/predicciones`. El agente
+  reportero (backend `agentes.reportero` en `config/agentes.yaml`) solo redacta el
+  resumen y las viñetas sobre esas cifras.
+- **Sin cifras inventadas.** Todo número de la narrativa debe aparecer tal cual en las
+  cifras entregadas. Si no aparece, o si la respuesta es ilegible, se pide una vez más
+  indicando el motivo. Si vuelve a fallar, el backend falla o el presupuesto de tokens
+  se agota, el PDF usa una narrativa determinista e indica por qué.
+- **Salida.** `reportes/<aaaa-mm-dd>/resumen_<version>.pdf` más un `.json` con las cifras,
+  la narrativa y su origen, para auditar cada PDF. Nada se sobrescribe (sufijo `-2`,
+  `-3`, ...).
+- **Códigos de salida.** 0 publicado, 1 sin modelo entrenado o versión inexistente, 2
+  error de configuración (p. ej. el agente `reportero` sin backend).
 
 ## Decisiones de diseño
 

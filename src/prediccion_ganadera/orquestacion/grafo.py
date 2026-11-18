@@ -1,4 +1,4 @@
-"""Grafo de una corrida: recolectar → extraer → verificar → cargar.
+"""Grafo de una corrida: recolectar → extraer → verificar → cargar → modelar → reportar.
 
 Cada nodo envuelve un paso inyectado (el grafo no conoce agentes, almacenes ni backends de
 IA). El estado tipado viaja entre nodos y se guarda en un checkpointer SQLite después de
@@ -33,7 +33,7 @@ from pydantic import BaseModel, Field
 
 from prediccion_ganadera.puertos.corridas import RegistroCorrida, RegistroCorridas
 
-ORDEN_PASOS = ("recolectar", "extraer", "verificar", "cargar", "modelar")
+ORDEN_PASOS = ("recolectar", "extraer", "verificar", "cargar", "modelar", "reportar")
 
 log = logging.getLogger(__name__)
 

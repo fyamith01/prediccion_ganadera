@@ -294,6 +294,49 @@ def _imprimir_modelado(resumen) -> None:
         )
 
 
+def _reportar(args: argparse.Namespace) -> int:
+    from datetime import UTC, datetime
+
+    from prediccion_ganadera.adaptadores.ia import crear_proveedor
+    from prediccion_ganadera.adaptadores.reportes.pdf import RenderizadorPdf
+    from prediccion_ganadera.agentes.reportero import AgenteReportero
+    from prediccion_ganadera.modelado.modelador import cargar_resumen
+
+    try:
+        config = cargar_configuracion(args.config)
+        ia = None if args.sin_ia else crear_proveedor(config, "reportero")
+    except ErrorConfiguracion as error:
+        print(error, file=sys.stderr)
+        return 2
+    try:
+        resumen = cargar_resumen(config.rutas.datos, args.version)
+    except KeyError:
+        if args.version is None:
+            print("no hay un modelo entrenado: ejecuta `entrenar` o `run` antes", file=sys.stderr)
+        else:
+            print(f"la versión {args.version} no existe o no tiene resumen", file=sys.stderr)
+        return 1
+    agente = AgenteReportero(ia=ia, presupuesto_tokens=config.limites.presupuesto_tokens_corrida)
+    publicado = agente.publicar(
+        resumen,
+        datos=config.rutas.datos,
+        reportes=config.rutas.reportes,
+        renderizador=RenderizadorPdf(),
+        ahora=datetime.now(UTC),
+    )
+    if args.json:
+        print(publicado.model_dump_json(indent=2))
+        return 0
+    print(f"Reporte del modelo {publicado.version}: {publicado.pdf}")
+    if publicado.narrativa == "ia":
+        print(f"Narrativa: redactada por IA ({publicado.uso.tokens} tokens)")
+    else:
+        print(f"Narrativa: narrativa determinista ({publicado.motivo})")
+    for rechazo in publicado.rechazos:
+        print(f"  - respuesta rechazada: {rechazo}")
+    return 0
+
+
 def _comparar_federado(args: argparse.Namespace) -> int:
     import os
 
@@ -494,6 +537,18 @@ def _parser() -> argparse.ArgumentParser:
     entrenar.add_argument("--json", action="store_true", help="resumen en JSON")
     entrenar.set_defaults(func=_entrenar)
 
+    reportar = sub.add_parser(
+        "reportar",
+        help="publica en PDF el resumen del último modelo (o de --version) en reportes/",
+    )
+    reportar.add_argument("--config", default=CONFIG_POR_DEFECTO)
+    reportar.add_argument("--version", help="versión del modelo; por defecto la más reciente")
+    reportar.add_argument(
+        "--sin-ia", action="store_true", help="narrativa determinista, sin backend de IA"
+    )
+    reportar.add_argument("--json", action="store_true", help="resumen en JSON")
+    reportar.set_defaults(func=_reportar)
+
     federado = sub.add_parser(
         "comparar-federado",
         help="compara el XGBoost federado simulado (Flower) con el central; no escribe nada",
@@ -520,7 +575,8 @@ def _parser() -> argparse.ArgumentParser:
 
     run = sub.add_parser(
         "run",
-        help="corrida completa: recolectar, extraer, verificar, cargar y modelar (reanudable)",
+        help="corrida completa: recolectar, extraer, verificar, cargar, modelar y reportar "
+        "(reanudable)",
     )
     run.add_argument("--config", default=CONFIG_POR_DEFECTO)
     identidad = run.add_mutually_exclusive_group()

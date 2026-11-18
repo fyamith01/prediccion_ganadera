@@ -136,7 +136,7 @@ def test_el_orquestador_registra_inicio_y_fin(tmp_path: Path):
     assert fin.estado == "completada"
     assert fin.iniciada_en == inicio.iniciada_en
     assert fin.terminada_en == fin.actualizada_en > inicio.iniciada_en
-    assert fin.tokens == 25
+    assert fin.tokens == 30
     assert list(fin.pasos) == list(ORDEN_PASOS)
 
 

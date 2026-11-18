@@ -19,15 +19,22 @@ from prediccion_ganadera.adaptadores.almacen.postgres import cargar_plata
 from prediccion_ganadera.adaptadores.almacen.revision import ColaRevision
 from prediccion_ganadera.adaptadores.fuente.http import ErrorFuente, FuenteHttp
 from prediccion_ganadera.adaptadores.ia import crear_proveedor
+from prediccion_ganadera.adaptadores.reportes.pdf import RenderizadorPdf
 from prediccion_ganadera.agentes.recolector import AgenteRecolector
+from prediccion_ganadera.agentes.reportero import AgenteReportero
 from prediccion_ganadera.agentes.verificador import AgenteVerificador
 from prediccion_ganadera.configuracion import Configuracion, ErrorConfiguracion
 from prediccion_ganadera.herramientas.bronce_a_plata import extraer_bronce_a_plata
 from prediccion_ganadera.modelado.dataset import DatosInsuficientes
-from prediccion_ganadera.modelado.modelador import ejecutar_modelado, leer_precios
+from prediccion_ganadera.modelado.modelador import (
+    ResumenModelado,
+    ejecutar_modelado,
+    leer_precios,
+)
 from prediccion_ganadera.orquestacion.grafo import ErrorPaso, EstadoCorrida, Paso, ResultadoPaso
 
 SIN_DSN = "sin conexión a Postgres: define PREDICCION_PG_DSN o usa --dsn"
+SIN_MODELO_NUEVO = "no hay un modelo nuevo en esta corrida"
 
 
 @dataclass(frozen=True)
@@ -52,6 +59,7 @@ def crear_pasos(config: Configuracion, opciones: OpcionesCorrida) -> dict[str, P
     fuente_cfg = config.fuente
     ia_recolector = None if opciones.sin_ia else crear_proveedor(config, "recolector")
     ia_verificador = None if opciones.sin_ia else crear_proveedor(config, "verificador")
+    ia_reportero = None if opciones.sin_ia else crear_proveedor(config, "reportero")
     datos: Path = config.rutas.datos
     bronce = AlmacenBronce(datos / "bronce")
     plata = AlmacenPlata(datos / "plata")
@@ -124,10 +132,31 @@ def crear_pasos(config: Configuracion, opciones: OpcionesCorrida) -> dict[str, P
             return ResultadoPaso(omitido=f"sin datos suficientes: {error}")
         return ResultadoPaso(resumen=resumen.model_dump(mode="json"))
 
+    def reportar(estado: EstadoCorrida) -> ResultadoPaso:
+        # Solo reporta el modelo entrenado en esta corrida; si `modelar` se omitió, no hay
+        # nada nuevo que contar (el último reporte publicado sigue vigente).
+        modelar = estado["pasos"].get("modelar")
+        if not modelar or modelar.get("omitido"):
+            return ResultadoPaso(omitido=SIN_MODELO_NUEVO)
+        agente = AgenteReportero(ia=ia_reportero, presupuesto_tokens=estado["presupuesto_restante"])
+        resumen = agente.publicar(
+            ResumenModelado.model_validate(modelar["resumen"]),
+            datos=datos,
+            reportes=config.rutas.reportes,
+            renderizador=RenderizadorPdf(),
+            ahora=_ahora(),
+        )
+        return ResultadoPaso(
+            resumen=resumen.model_dump(mode="json"),
+            tokens=resumen.uso.tokens,
+            costo_usd=resumen.uso.costo_usd,
+        )
+
     return {
         "recolectar": recolectar,
         "extraer": extraer,
         "verificar": verificar,
         "cargar": cargar,
         "modelar": modelar,
+        "reportar": reportar,
     }

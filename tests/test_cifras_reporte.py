@@ -5,8 +5,7 @@ escriben (formato colombiano: punto de miles, coma decimal) y la barrera que det
 números que no están en los hechos entregados.
 """
 
-import random
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -22,44 +21,20 @@ from prediccion_ganadera.herramientas.cifras_reporte import (
     numeros_no_permitidos,
 )
 from prediccion_ganadera.modelado.modelador import cargar_resumen, ejecutar_modelado
-from prediccion_ganadera.modelado.variables import PrecioCategoria, ResultadoPrecios
 
-INICIO = date(2025, 1, 3)  # viernes
 AHORA = datetime(2026, 11, 18, 12, 0, tzinfo=UTC)
-BASES = {"VACA HORRA": 7800, "MACHO LEVANTE": 10500, "HEMBRA LEVANTE": 9800}
-
-
-def _precios(semanas: int) -> ResultadoPrecios:
-    azar = random.Random(3)
-    precios = [
-        PrecioCategoria(
-            fecha=INICIO + timedelta(weeks=i),
-            especial=False,
-            sha256="a" * 64,
-            seccion="hembra",
-            categoria=categoria,
-            unidad="kg",
-            animales=40,
-            peso_cabeza=300,
-            precio_minimo=precio,
-            precio_maximo=precio,
-            precio_promedio=precio,
-            valor_animal=precio * 300,
-        )
-        for i in range(semanas)
-        for categoria, base in BASES.items()
-        for precio in [round(base * (1.1 if i % 2 else 1.0) * azar.uniform(0.995, 1.005))]
-    ]
-    return ResultadoPrecios(
-        precios=precios, descartes=[], tablas_resumen=semanas, tablas_omitidas=0
-    )
+BASES = {"VACA HORRA", "MACHO LEVANTE", "HEMBRA LEVANTE"}  # las de `precios_sinteticos`
 
 
 @pytest.fixture(scope="module")
-def modelado(tmp_path_factory):
+def modelado(tmp_path_factory, precios_sinteticos):
     datos = tmp_path_factory.mktemp("datos")
     resumen = ejecutar_modelado(
-        _precios(60), datos=datos, fuente="plata", incluir_no_verificadas=False, ahora=AHORA
+        precios_sinteticos(60),
+        datos=datos,
+        fuente="plata",
+        incluir_no_verificadas=False,
+        ahora=AHORA,
     )
     predicciones = AlmacenOro(datos / "oro").leer_predicciones(resumen.version)
     return datos, resumen, predicciones

@@ -11,9 +11,10 @@ contenedores). Si ninguno está disponible, las pruebas que lo piden se omiten.
 from __future__ import annotations
 
 import os
+import random
 import uuid
 from collections.abc import Iterator
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
@@ -24,6 +25,10 @@ from prediccion_ganadera.herramientas.cifras_reporte import (
     FilaHorizonte,
     FilaRecomendacion,
 )
+from prediccion_ganadera.modelado.variables import PrecioCategoria, ResultadoPrecios
+
+INICIO = date(2025, 1, 3)  # viernes
+BASES = {"VACA HORRA": 7800, "MACHO LEVANTE": 10500, "HEMBRA LEVANTE": 9800}
 
 
 @pytest.fixture(scope="session")
@@ -118,3 +123,36 @@ def _cifras(**cambios) -> CifrasReporte:
 def cifras_sinteticas():
     """Fábrica de `CifrasReporte` sintéticas (sin entrenar): `cifras_sinteticas(campo=valor)`."""
     return _cifras
+
+
+def _precios(semanas: int) -> ResultadoPrecios:
+    """Tres categorías que suben y bajan 10 % semana a semana, una subasta por viernes."""
+    azar = random.Random(3)
+    precios = [
+        PrecioCategoria(
+            fecha=INICIO + timedelta(weeks=i),
+            especial=False,
+            sha256="a" * 64,
+            seccion="hembra",
+            categoria=categoria,
+            unidad="kg",
+            animales=40,
+            peso_cabeza=300,
+            precio_minimo=precio,
+            precio_maximo=precio,
+            precio_promedio=precio,
+            valor_animal=precio * 300,
+        )
+        for i in range(semanas)
+        for categoria, base in BASES.items()
+        for precio in [round(base * (1.1 if i % 2 else 1.0) * azar.uniform(0.995, 1.005))]
+    ]
+    return ResultadoPrecios(
+        precios=precios, descartes=[], tablas_resumen=semanas, tablas_omitidas=0
+    )
+
+
+@pytest.fixture(scope="session")
+def precios_sinteticos():
+    """Fábrica de `ResultadoPrecios` sintéticos: `precios_sinteticos(semanas)`."""
+    return _precios

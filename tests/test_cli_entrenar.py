@@ -69,6 +69,7 @@ backends:
 agentes:
   recolector: {{backend: local}}
   verificador: {{backend: local}}
+  reportero: {{backend: local}}
 rutas: {{datos: "{tmp_path / "data"}", reportes: "{tmp_path / "reportes"}"}}
 fuente:
   url: https://www.subastas.example/resumen-de-subastas/
