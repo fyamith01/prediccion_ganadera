@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, computed_field, model_validator
 
 from prediccion_ganadera.adaptadores.almacen.plata import AlmacenPlata
 from prediccion_ganadera.herramientas.comprobaciones import numeros
@@ -108,14 +108,17 @@ class MetricasFilas(BaseModel):
     valores_esperados: int
     valores_correctos: int
 
+    @computed_field
     @property
     def recall(self) -> float | None:
         return _razon(self.encontradas, self.esperadas)
 
+    @computed_field
     @property
     def precision(self) -> float | None:
         return _razon(self.correctas_en_completas, self.extraidas_en_completas)
 
+    @computed_field
     @property
     def exactitud_valores(self) -> float | None:
         return _razon(self.valores_correctos, self.valores_esperados)
@@ -130,6 +133,7 @@ class MetricasPrecios(BaseModel):
     campos_esperados: int
     campos_correctos: int
 
+    @computed_field
     @property
     def exactitud_campos(self) -> float | None:
         return _razon(self.campos_correctos, self.campos_esperados)
@@ -146,6 +150,7 @@ class EvaluacionExtraccion(BaseModel):
     precios: MetricasPrecios
     detalles: list[str]  # cada diferencia encontrada, legible
 
+    @computed_field
     @property
     def revisada(self) -> bool:
         return self.estado == "revisada"

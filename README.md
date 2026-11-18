@@ -219,6 +219,29 @@ uv run prediccion-ganadera reportar --version 20261118T120000Z --json
 - **Códigos de salida.** 0 publicado, 1 sin modelo entrenado o versión inexistente, 2
   error de configuración (p. ej. el agente `reportero` sin backend).
 
+## Evaluación
+
+Tres niveles, cada uno con un subcomando que solo lee (no escribe ni llama a la IA). Detalle
+de cada métrica y cómo agregar muestras en [`docs/evaluacion.md`](docs/evaluacion.md).
+
+```bash
+uv run prediccion-ganadera evaluar extraccion      # exactitud contra muestras revisadas a mano
+uv run prediccion-ganadera evaluar trayectorias    # corridas: éxito, costo, bucle del verificador
+uv run prediccion-ganadera evaluar modelo --seguimiento   # validación y error real del modelo
+```
+
+- **Extracción.** Compara el extractor (o plata, tras el verificador) con
+  `evaluacion/muestras/*.yaml`: recall y precisión de filas, exactitud de valores y de los
+  precios que consume el modelo. Una muestra en `borrador` se reporta como tal.
+- **Trayectorias.** Desde `data/corridas/corridas.jsonl` (o `operacion.runs` con
+  `--fuente postgres`): tasa de éxito, reanudaciones, duración, tokens y costo por paso,
+  tablas resueltas sin intervención humana, llamadas de visión y rectificaciones por tabla.
+- **Modelo.** Métricas de validación de cada versión registrada y su cambio frente a la
+  anterior; con `--seguimiento`, el error real de las predicciones guardadas en oro frente a
+  los precios que se observaron después.
+- **Códigos de salida.** 0 evaluado, 1 nada que evaluar o dato no disponible, 2 error de
+  configuración.
+
 ## Decisiones de diseño
 
 *Pendiente.*

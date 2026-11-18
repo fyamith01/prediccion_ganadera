@@ -18,7 +18,7 @@ from collections.abc import Iterable
 from datetime import date
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, computed_field
 
 from prediccion_ganadera.adaptadores.almacen.modelos import RegistroModelos
 from prediccion_ganadera.adaptadores.almacen.oro import AlmacenOro
@@ -34,6 +34,7 @@ class SeguimientoPredicciones(BaseModel):
     mae_ingenuo: float | None
     dentro_del_error: float | None  # fracción con |error| <= error esperado
 
+    @computed_field
     @property
     def mejora(self) -> float | None:
         if self.mae is None or not self.mae_ingenuo:

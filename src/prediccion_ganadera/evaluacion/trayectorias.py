@@ -21,7 +21,7 @@ from collections import Counter
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, computed_field
 
 from prediccion_ganadera.puertos.corridas import RegistroCorrida
 
@@ -44,23 +44,28 @@ class MetricasVerificador(BaseModel):
     max_rectificaciones_tabla: int = 0
     pendientes_por_presupuesto: int = 0
 
+    @computed_field
     @property
     def con_decision(self) -> int:
         """Tablas con decisión final: resueltas o enviadas a revisión humana."""
         return sum(self.por_estado.get(e, 0) for e in (*RESUELTAS, "en_revision"))
 
+    @computed_field
     @property
     def tasa_automatica(self) -> float | None:
         return _razon(sum(self.por_estado.get(e, 0) for e in RESUELTAS), self.con_decision)
 
+    @computed_field
     @property
     def tasa_revision(self) -> float | None:
         return _razon(self.por_estado.get("en_revision", 0), self.con_decision)
 
+    @computed_field
     @property
     def vision_por_tabla(self) -> float | None:
         return _razon(self.llamadas_vision, self.tablas)
 
+    @computed_field
     @property
     def rectificaciones_por_tabla(self) -> float | None:
         return _razon(self.rectificaciones, self.tablas)
@@ -77,6 +82,7 @@ class MetricasRecolector(BaseModel):
     descargados: int
     errores_descarga: int
 
+    @computed_field
     @property
     def cobertura(self) -> float | None:
         return _razon(self.fechas_esperadas - self.fechas_faltantes, self.fechas_esperadas)
@@ -113,6 +119,7 @@ class MetricasTrayectorias(BaseModel):
     recolector_ultima: MetricasRecolector | None  # de la corrida más reciente que recolectó
     detalle: list[MetricasCorrida]
 
+    @computed_field
     @property
     def tasa_exito(self) -> float | None:
         """Completadas entre las terminadas (las que siguen en curso no cuentan)."""
