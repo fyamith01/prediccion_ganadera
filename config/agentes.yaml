@@ -1,0 +1,35 @@
+# Backend de IA por agente. Cambia `agentes.<nombre>.backend` antes de lanzar una corrida.
+# Los comandos se ejecutan sin shell; `{prompt}` se reemplaza por el prompt como un único argumento.
+version: 1
+
+backends:
+  claude:            # Claude Code en modo headless
+    tipo: cli_harness
+    comando: ["claude", "-p", "{prompt}", "--output-format", "json"]
+  antigravity:       # Antigravity CLI; requiere un primer `agy` interactivo para autenticarse
+    tipo: cli_harness
+    comando: ["agy", "-p", "{prompt}", "--output-format", "json"]
+  cursor:            # Cursor CLI; requiere CURSOR_API_KEY
+    tipo: cli_harness
+    comando: ["agent", "-p", "{prompt}", "--output-format", "json", "--trust"]
+  local:             # IA local con Ollama (modelo de visión)
+    tipo: ollama
+    modelo: qwen2.5vl:3b
+
+agentes:
+  recolector: {backend: claude}
+  verificador: {backend: claude}
+  rectificador: {backend: claude}
+  reportero: {backend: claude}
+
+limites:
+  max_iteraciones_rectificacion: 3
+  presupuesto_tokens_corrida: 200000
+
+rutas:
+  datos: data
+  reportes: reportes
+
+fuente:
+  url: https://www.subastas.example/resumen-de-subastas/
+  dominios_permitidos: [www.subastas.example, subastas.example]
