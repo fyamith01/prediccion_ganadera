@@ -33,6 +33,7 @@ from pydantic import BaseModel, ConfigDict
 from prediccion_ganadera.modelado.dataset import (
     MetricasValidacion,
     construir_dataset,
+    particiones_temporales,
     serie_precios,
     validar,
 )
@@ -211,6 +212,12 @@ def comparar_federado(
     dataset = construir_dataset(serie, horizontes=opciones.horizontes)
     categorias = sorted(serie.categoria.unique())
     parametros = {**PARAMETROS_XGB, **opciones.parametros}
+    pliegues = {
+        "n_pliegues": opciones.n_pliegues,
+        "fechas_prueba": opciones.fechas_prueba,
+        "minimo_entrenamiento": opciones.minimo_entrenamiento,
+    }
+    particiones_temporales(dataset, **pliegues)  # sin histórico no hay reparto que juzgar
     clientes = asignar_clientes(dataset, reparto, precios=precios)
     diagnostico = diagnosticar_reparto(
         dataset, clientes, minimo_fechas=opciones.minimo_entrenamiento
@@ -231,11 +238,6 @@ def comparar_federado(
             clientes_por_pliegue=[],
             diferencia_mae=None,
         )
-    pliegues = {
-        "n_pliegues": opciones.n_pliegues,
-        "fechas_prueba": opciones.fechas_prueba,
-        "minimo_entrenamiento": opciones.minimo_entrenamiento,
-    }
     central = validar(
         dataset,
         lambda x, y: ModeloXGB(categorias, parametros).entrenar(x, y),

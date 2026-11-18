@@ -172,6 +172,25 @@ uv run prediccion-ganadera entrenar --json                    # resumen completo
 - **Sin histórico suficiente** el comando no entrena, explica cuántas subastas hay y
   cuántas tablas faltan por validar, y sale con código 1.
 
+### Aprendizaje federado (simulado)
+
+`comparar-federado` entrena el mismo modelo con XGBoost federado (Flower, estrategia
+`FedXgbBagging`). Lo hace con clientes simulados que no comparten sus filas y lo compara
+con el modelo central en los mismos pliegues de validación temporal. No escribe nada.
+
+```bash
+uv run prediccion-ganadera comparar-federado                  # repartos anio, seccion y tipo_subasta
+uv run prediccion-ganadera comparar-federado --reparto anio --json
+```
+
+Los clientes se reparten por año, por sección (hembra/macho) o por tipo de subasta. Un
+reparto con un solo cliente, o con clientes de menos de 12 fechas, se declara no viable,
+con el motivo y sin métricas. Es el caso del tipo de subasta, porque hay una sola subasta
+especial. Como todos los datos vienen de una misma asociación, la comparación es una
+simulación: mide cuánta precisión cuesta no juntar los datos. El razonamiento, las
+decisiones técnicas y los resultados están en
+[docs/aprendizaje_federado.md](docs/aprendizaje_federado.md).
+
 ## Decisiones de diseño
 
 *Pendiente.*

@@ -169,3 +169,52 @@ def test_paso_modelar_entrena_u_omite_segun_los_datos(config: Path):
     assert entrenado.omitido is None
     assert entrenado.resumen["fechas_historico"] == 40
     assert (_datos(config) / "modelos" / entrenado.resumen["version"]).is_dir()
+
+
+def test_comparar_federado_por_anio_mide_ambos_modelos_sin_escribir_nada(config: Path, capsys):
+    _llenar_plata(_datos(config), 70)  # 2025-01-03 .. 2026-05-01: dos años con fechas
+
+    codigo = main(
+        ["comparar-federado", "--config", str(config), "--reparto", "anio", "--rondas", "10",
+         "--json"]
+    )  # fmt: skip
+
+    assert codigo == 0
+    (comparacion,) = json.loads(capsys.readouterr().out)
+    assert comparacion["reparto"] == "anio"
+    assert comparacion["viable"] is True
+    assert comparacion["rondas"] == 10
+    assert set(comparacion["fechas_por_cliente"]) == {"2025", "2026"}
+    assert comparacion["central"]["pliegues"] == comparacion["federado"]["pliegues"] == 5
+    assert not (_datos(config) / "modelos").exists()
+    assert not (_datos(config) / "oro").exists()
+
+
+def test_comparar_federado_documenta_los_repartos_no_viables(config: Path, capsys):
+    _llenar_plata(_datos(config), 70)
+
+    codigo = main(["comparar-federado", "--config", str(config), "--rondas", "10"])
+
+    assert codigo == 0
+    salida = capsys.readouterr().out
+    # las tablas sintéticas solo traen la sección de hembras y ninguna subasta especial
+    assert "anio:" in salida and "seccion: no viable" in salida
+    assert "tipo_subasta: no viable" in salida
+    assert "un solo cliente" in salida
+    assert "error medio" in salida
+
+
+def test_comparar_federado_sin_historico_suficiente(config: Path, capsys):
+    _llenar_plata(_datos(config), 30, estado="pendiente")
+
+    codigo = main(["comparar-federado", "--config", str(config), "--reparto", "anio"])
+
+    assert codigo == 1
+    assert "no se comparó" in capsys.readouterr().err
+
+
+def test_comparar_federado_desde_staging_sin_dsn_es_error_de_configuracion(config: Path, capsys):
+    codigo = main(["comparar-federado", "--config", str(config), "--fuente", "staging"])
+
+    assert codigo == 2
+    assert "PREDICCION_PG_DSN" in capsys.readouterr().err

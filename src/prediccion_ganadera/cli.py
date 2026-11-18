@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from collections.abc import Sequence
 from datetime import date
@@ -293,6 +294,71 @@ def _imprimir_modelado(resumen) -> None:
         )
 
 
+def _comparar_federado(args: argparse.Namespace) -> int:
+    import os
+
+    import psycopg
+
+    from prediccion_ganadera.modelado.dataset import DatosInsuficientes
+    from prediccion_ganadera.modelado.entrenamiento import OpcionesEntrenamiento
+    from prediccion_ganadera.modelado.federado import REPARTOS, comparar_federado
+    from prediccion_ganadera.modelado.modelador import leer_precios
+
+    try:
+        config = cargar_configuracion(args.config)
+        dsn = args.dsn or os.environ.get(VARIABLE_DSN)
+        if args.fuente == "staging" and not dsn:
+            raise ErrorConfiguracion(
+                f"la fuente staging requiere Postgres: define {VARIABLE_DSN} o usa --dsn"
+            )
+    except ErrorConfiguracion as error:
+        print(error, file=sys.stderr)
+        return 2
+    repartos = REPARTOS if args.reparto == "todos" else (args.reparto,)
+    try:
+        precios = leer_precios(
+            args.fuente,
+            datos=config.rutas.datos,
+            dsn=dsn,
+            incluir_no_verificadas=args.incluir_no_verificadas,
+        )
+        comparaciones = [
+            comparar_federado(precios.precios, r, OpcionesEntrenamiento(), rondas=args.rondas)
+            for r in repartos
+        ]
+    except DatosInsuficientes as error:
+        print(
+            f"no se comparó: {error}; {len(precios.fechas)} subasta(s) con precios",
+            file=sys.stderr,
+        )
+        return 1
+    except psycopg.Error as error:
+        print(f"no se pudo leer staging en Postgres: {error}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps([c.model_dump(mode="json") for c in comparaciones], indent=2))
+    else:
+        for comparacion in comparaciones:
+            _imprimir_comparacion(comparacion)
+    return 0
+
+
+def _imprimir_comparacion(c) -> None:
+    clientes = ", ".join(f"{k} ({n} fechas)" for k, n in c.fechas_por_cliente.items())
+    if not c.viable:
+        print(f"{c.reparto}: no viable; clientes: {clientes}")
+        for motivo in c.motivos:
+            print(f"  - {motivo}")
+        return
+    print(f"{c.reparto}: clientes: {clientes}; {c.rondas} rondas federadas")
+    for nombre, m in (("central", c.central), ("federado", c.federado)):
+        print(
+            f"  {nombre}: error medio {m.mae:,.0f} $/kg (línea base {m.mae_ingenuo:,.0f}); "
+            f"mejora {m.mejora:.1%} en {m.pliegues} pliegues"
+        )
+    print(f"  diferencia federado − central: {c.diferencia_mae:+,.0f} $/kg")
+
+
 def _run(args: argparse.Namespace) -> int:
     import json
     import os
@@ -427,6 +493,30 @@ def _parser() -> argparse.ArgumentParser:
     )
     entrenar.add_argument("--json", action="store_true", help="resumen en JSON")
     entrenar.set_defaults(func=_entrenar)
+
+    federado = sub.add_parser(
+        "comparar-federado",
+        help="compara el XGBoost federado simulado (Flower) con el central; no escribe nada",
+    )
+    federado.add_argument("--config", default=CONFIG_POR_DEFECTO)
+    federado.add_argument(
+        "--reparto",
+        choices=["todos", "anio", "seccion", "tipo_subasta"],
+        default="todos",
+        help="cómo se reparten las filas entre clientes simulados",
+    )
+    federado.add_argument(
+        "--fuente", choices=["plata", "staging"], default="plata", help="de dónde leer precios"
+    )
+    federado.add_argument("--dsn", help=f"conexión a Postgres; por defecto ${VARIABLE_DSN}")
+    federado.add_argument(
+        "--incluir-no-verificadas",
+        action="store_true",
+        help="usa también tablas pendientes de verificación",
+    )
+    federado.add_argument("--rondas", type=int, default=60, help="rondas federadas")
+    federado.add_argument("--json", action="store_true", help="comparaciones en JSON")
+    federado.set_defaults(func=_comparar_federado)
 
     run = sub.add_parser(
         "run",
