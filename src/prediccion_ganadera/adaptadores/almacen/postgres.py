@@ -18,7 +18,8 @@ import psycopg
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict
 
-from prediccion_ganadera.adaptadores.almacen.plata import AlmacenPlata, TablaPlata
+from prediccion_ganadera.adaptadores.almacen.plata import AlmacenPlata, ClaveTabla, TablaPlata
+from prediccion_ganadera.herramientas.extraer_tablas_pdf import FilaExtraida, TablaExtraida
 
 ESQUEMA_SQL = Path(__file__).with_name("esquema_postgres.sql")
 ESTADOS_VALIDADOS = frozenset({"verificada", "corregida"})
@@ -157,3 +158,49 @@ def _sincronizar_staging(
         """,
         clave,
     )
+
+
+def tablas_staging(conexion: psycopg.Connection) -> list[TablaPlata]:
+    """Las tablas validadas de `staging` con sus celdas, ordenadas por clave.
+
+    Los ajustes y la fecha de extracción vienen de `raw.tablas`, que `staging` referencia.
+    """
+    metadatos = conexion.execute(
+        """
+        SELECT s.sha256, s.pagina, s.tabla, s.fecha, s.especial, s.estado_verificacion,
+               s.columnas, r.ajustes, r.extraido_en
+        FROM staging.tablas s JOIN raw.tablas r USING (sha256, pagina, tabla)
+        ORDER BY s.sha256, s.pagina, s.tabla
+        """
+    ).fetchall()
+    celdas: dict[tuple[str, int, int], dict[int, dict[int, str | None]]] = {}
+    for sha, pagina, tabla, fila, columna, valor in conexion.execute(
+        "SELECT sha256, pagina, tabla, fila, columna, valor FROM staging.celdas"
+    ):
+        celdas.setdefault((sha, pagina, tabla), {}).setdefault(fila, {})[columna] = valor
+    tablas = []
+    for sha, pagina, tabla, fecha, especial, estado, columnas, ajustes, extraido in metadatos:
+        filas = celdas.get((sha, pagina, tabla), {})
+        tablas.append(
+            TablaPlata(
+                clave=ClaveTabla(sha256=sha, pagina=pagina, tabla=tabla),
+                fecha=fecha,
+                especial=especial,
+                estado=estado,
+                extraido_en=extraido,
+                tabla=TablaExtraida(
+                    pagina=pagina,
+                    indice=tabla,
+                    columnas=columnas,
+                    filas=tuple(
+                        FilaExtraida(
+                            indice=i,
+                            celdas=tuple(filas[i].get(c) for c in range(columnas)),
+                        )
+                        for i in sorted(filas)
+                    ),
+                    ajustes=ajustes,
+                ),
+            )
+        )
+    return tablas
