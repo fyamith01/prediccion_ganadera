@@ -2,11 +2,13 @@
 -- raw:     copia fiel de la capa plata, todas las tablas sin importar su verificación.
 -- staging: solo las tablas aceptadas por el verificador (verificada o corregida).
 -- marts:   vistas de consumo construidas sobre raw/staging.
+-- operacion: registro de corridas del orquestador (observabilidad).
 -- Diccionario de datos: docs/diccionario_datos.md
 
 CREATE SCHEMA IF NOT EXISTS raw;
 CREATE SCHEMA IF NOT EXISTS staging;
 CREATE SCHEMA IF NOT EXISTS marts;
+CREATE SCHEMA IF NOT EXISTS operacion;
 
 CREATE TABLE IF NOT EXISTS raw.tablas (
     sha256              text        NOT NULL CHECK (sha256 ~ '^[0-9a-f]+$'),
@@ -83,3 +85,17 @@ SELECT
 FROM raw.tablas
 GROUP BY sha256, fecha, especial;
 COMMENT ON VIEW marts.cobertura_subastas IS 'Estado de verificación por subasta (PDF).';
+
+CREATE TABLE IF NOT EXISTS operacion.runs (
+    id_corrida     text             PRIMARY KEY,
+    estado         text             NOT NULL
+        CHECK (estado IN ('en_curso', 'completada', 'fallida', 'interrumpida')),
+    iniciada_en    timestamptz      NOT NULL,
+    actualizada_en timestamptz      NOT NULL,
+    terminada_en   timestamptz,
+    tokens         integer          NOT NULL CHECK (tokens >= 0),
+    costo_usd      double precision NOT NULL CHECK (costo_usd >= 0),
+    error          text,
+    pasos          jsonb            NOT NULL
+);
+COMMENT ON TABLE operacion.runs IS 'Una fila por corrida del orquestador (estado, uso y pasos).';

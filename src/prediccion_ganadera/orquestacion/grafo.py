@@ -11,6 +11,9 @@ Condiciones de parada:
 - Cualquier otra excepción se propaga: el proceso cae y la corrida queda pendiente para
   `reanudar`.
 - El presupuesto de tokens es de la corrida: cada paso recibe `presupuesto_restante`.
+
+Cada inicio, reanudación, final o caída se escribe en los registros de corridas; un
+registro que falla se reporta en el log y no detiene la corrida.
 """
 
 from __future__ import annotations
@@ -18,14 +21,17 @@ from __future__ import annotations
 import logging
 import sqlite3
 import time
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TypedDict
 
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, Field
+
+from prediccion_ganadera.puertos.corridas import RegistroCorrida, RegistroCorridas
 
 ORDEN_PASOS = ("recolectar", "extraer", "verificar", "cargar")
 
@@ -47,6 +53,7 @@ class ResultadoPaso(BaseModel):
 
 class EstadoCorrida(TypedDict, total=False):
     id_corrida: str
+    iniciada_en: str  # ISO 8601; se conserva al reanudar
     presupuesto_tokens: int
     presupuesto_restante: int
     tokens: int
@@ -133,10 +140,18 @@ class Orquestador:
     """Inicia y reanuda corridas identificadas por `id_corrida` (el hilo del checkpointer)."""
 
     def __init__(
-        self, pasos: Mapping[str, Paso], checkpointer: SqliteSaver, *, presupuesto_tokens: int
+        self,
+        pasos: Mapping[str, Paso],
+        checkpointer: SqliteSaver,
+        *,
+        presupuesto_tokens: int,
+        registros: Sequence[RegistroCorridas] = (),
+        reloj: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._grafo = construir_grafo(pasos, checkpointer)
         self._presupuesto = presupuesto_tokens
+        self._registros = tuple(registros)
+        self._reloj = reloj
 
     @staticmethod
     def _config(id_corrida: str) -> dict:
@@ -156,6 +171,7 @@ class Orquestador:
             raise ErrorPaso(f"la corrida {id_corrida} ya existe; usa reanudar")
         inicial = EstadoCorrida(
             id_corrida=id_corrida,
+            iniciada_en=self._reloj().isoformat(),
             presupuesto_tokens=self._presupuesto,
             presupuesto_restante=self._presupuesto,
             tokens=0,
@@ -164,11 +180,49 @@ class Orquestador:
             estado="en_curso",
             error=None,
         )
-        return self._grafo.invoke(inicial, self._config(id_corrida))
+        return self._ejecutar(id_corrida, inicial, inicial)
 
     def reanudar(self, id_corrida: str) -> EstadoCorrida:
         if not self.existe(id_corrida):
             raise ErrorPaso(f"la corrida {id_corrida} no existe")
         if not self.pendientes(id_corrida):
             raise ErrorPaso(f"la corrida {id_corrida}: no hay pasos pendientes")
-        return self._grafo.invoke(None, self._config(id_corrida))
+        return self._ejecutar(id_corrida, None, self.estado(id_corrida))
+
+    def _ejecutar(
+        self, id_corrida: str, entrada: EstadoCorrida | None, actual: EstadoCorrida
+    ) -> EstadoCorrida:
+        self._registrar(actual, "en_curso", error=None)
+        try:
+            final = self._grafo.invoke(entrada, self._config(id_corrida))
+        except Exception as error:
+            self._registrar(
+                self.estado(id_corrida), "interrumpida", error=f"{type(error).__name__}: {error}"
+            )
+            raise
+        self._registrar(final, final["estado"], error=final.get("error"))
+        return final
+
+    def _registrar(self, estado: EstadoCorrida, situacion: str, *, error: str | None) -> None:
+        ahora = self._reloj()
+        registro = RegistroCorrida(
+            id_corrida=estado["id_corrida"],
+            estado=situacion,
+            iniciada_en=datetime.fromisoformat(estado["iniciada_en"]),
+            actualizada_en=ahora,
+            terminada_en=ahora if situacion in ("completada", "fallida") else None,
+            tokens=estado["tokens"],
+            costo_usd=estado["costo_usd"],
+            error=error,
+            pasos=estado["pasos"],
+        )
+        for destino in self._registros:
+            try:
+                destino.guardar(registro)
+            except Exception as fallo:  # la observabilidad no debe tumbar la corrida
+                log.warning(
+                    "corrida=%s no se pudo registrar en %s: %s",
+                    registro.id_corrida,
+                    type(destino).__name__,
+                    fallo,
+                )

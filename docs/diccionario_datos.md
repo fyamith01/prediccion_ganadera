@@ -83,7 +83,7 @@ Tabla Delta en `data/plata/cola_revision`: tablas que el verificador no pudo res
 
 ## PostgreSQL
 
-Lo crea y actualiza `prediccion-ganadera cargar`
+Lo crean y actualizan `prediccion-ganadera cargar` y `prediccion-ganadera run`
 ([DDL](../src/prediccion_ganadera/adaptadores/almacen/esquema_postgres.sql)). La carga es
 idempotente: cada tabla lleva una `huella` y solo se reescriben las que cambiaron.
 
@@ -164,3 +164,21 @@ Vista: una fila por PDF con el avance de su verificación.
 | `tablas_en_revision` | integer | Tablas `en_revision`. |
 | `filas_validadas` | integer | Filas de las tablas validadas. |
 | `cargado_en` | timestamptz | Último cambio cargado de ese PDF. |
+
+### `operacion.runs`
+
+Una fila por corrida del orquestador (`prediccion-ganadera run`), escrita al iniciar, al
+reanudar y al terminar o caer (upsert por `id_corrida`). La misma información queda,
+versión por versión, en `data/corridas/corridas.jsonl`.
+
+| Columna | Tipo | Descripción |
+|---|---|---|
+| `id_corrida` | text | Identificador de la corrida y del hilo del checkpointer. |
+| `estado` | text | `en_curso`, `completada`, `fallida` (error esperado de un paso) o `interrumpida` (el proceso cayó; se puede reanudar). |
+| `iniciada_en` | timestamptz | Inicio de la corrida; se conserva al reanudar. |
+| `actualizada_en` | timestamptz | Última escritura del registro. |
+| `terminada_en` | timestamptz | Fin de una corrida `completada` o `fallida`; nulo en otro caso. |
+| `tokens` | integer | Tokens de IA consumidos por todos los pasos. |
+| `costo_usd` | double precision | Costo reportado por los backends de IA (0 para IA local). |
+| `error` | text | Motivo de `fallida` o `interrumpida`. |
+| `pasos` | jsonb | Por paso terminado: `resumen`, `omitido`, `tokens`, `costo_usd`, `duracion_s`. |

@@ -44,7 +44,7 @@ def test_documenta_las_columnas_de_postgres(postgres_dsn: str):
         crear_esquemas(conexion)
         filas = conexion.execute(
             "SELECT table_schema || '.' || table_name, column_name FROM information_schema.columns "
-            "WHERE table_schema IN ('raw', 'staging', 'marts') "
+            "WHERE table_schema IN ('raw', 'staging', 'marts', 'operacion') "
             "ORDER BY table_schema, table_name, ordinal_position"
         ).fetchall()
     reales: dict[str, list[str]] = {}
